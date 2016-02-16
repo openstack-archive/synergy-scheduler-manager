@@ -1,0 +1,9 @@
+# The order of packages is significant, because pip processes them in the order
+# of appearance. Changing the order has an impact on the overall integration
+# process, which may cause wedges in the gate later.
+
+pbr>=1.6
+synergy-service==0.1.1.dev1
+oslo.config<2.0.0
+oslo.messaging<2.0.0
+sqlalchemy

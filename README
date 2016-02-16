@@ -1,0 +1,40 @@
+------------------------------
+ SYNERGY SCHEDULER MANAGER
+------------------------------
+
+Synergy is as a new extensible general purpose management OpenStack service. 
+Its capabilities are implemented by a collection of managers which are specific
+and independent pluggable tasks, executed periodically or interactively. The
+managers can interact with each other in a loosely coupled way.
+The Scheduler Manager provides advanced scheduling (fairshare) capability for OpenStack.
+In particular it aims to address the resource utilization issues coming from the 
+static allocation model inherent in the Cloud paradigm, by adopting the dynamic 
+partitioning strategy implemented by the advanced batch schedulers.
+
+
+================
+1. INSTALLATION
+================
+
+---------------
+1.1 REQUISITES
+---------------
+
+
+----------------------
+1.2 OPTIONAL PACKAGES
+----------------------
+
+---------------
+1.3 INSTALLING
+---------------
+
+
+------------------
+1.4 CONFIGURATION
+------------------
+
+
+---------------
+1.5 SECURITY
+---------------

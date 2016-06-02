@@ -258,7 +258,7 @@ class Token(object):
 class KeystoneManager(Manager):
 
     def __init__(self):
-        Manager.__init__(self, name="KeystoneManager")
+        super(KeystoneManager, self).__init__(name="KeystoneManager")
 
         self.config_opts = [
             cfg.StrOpt("auth_url",
@@ -330,13 +330,11 @@ class KeystoneManager(Manager):
         elif command == "GET_ENDPOINTS":
             return self.getEndpoints()
         elif command == "GET_ENDPOINT":
-            return self.getEndpoints(*args, **kargs)
+            return self.getEndpoints()
         elif command == "GET_SERVICES":
             return self.getServices()
         elif command == "GET_SERVICE":
             return self.getService(*args, **kargs)
-        elif command == "TRUST":
-            return self.trust(*args, **kargs)
         else:
             return None
 
@@ -452,8 +450,9 @@ class KeystoneManager(Manager):
             response = self.getResource("/projects/%s" % id, "GET")
         except requests.exceptions.HTTPError as ex:
             response = ex.response.json()
-            raise Exception("error on retrieving the project (id=%r, "
-                            % (id, response["error"]["message"]))
+            raise Exception(
+                "error on retrieving the project (id=%r, msg=%s)." %
+                (id, response["error"]["message"]))
 
         if response:
             response = response["project"]
@@ -565,9 +564,9 @@ class KeystoneManager(Manager):
                 endpoints = self.getEndpoints()
             except requests.exceptions.HTTPError as ex:
                 response = ex.response.json()
-                raise Exception("error on retrieving the endpoints list"
-                                "(serviceId=%r): %s"
-                                % response["error"]["message"])
+                raise Exception(
+                    "error on retrieving the endpoints list (serviceId=%r)" %
+                    response["error"]["message"])
 
             if endpoints:
                 for endpoint in endpoints:

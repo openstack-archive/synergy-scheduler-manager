@@ -37,7 +37,7 @@ LOG = logging.getLogger(__name__)
 class FairShareManager(Manager):
 
     def __init__(self):
-        Manager.__init__(self, name="FairShareManager")
+        super(FairShareManager, self).__init__(name="FairShareManager")
 
         self.config_opts = [
             cfg.IntOpt('periods', default=3),
@@ -84,7 +84,7 @@ class FairShareManager(Manager):
         elif command == "GET_PROJECT":
             return self.getProject(*args, **kargs)
         elif command == "GET_PROJECTS":
-            return self.getProjects(*args, **kargs)
+            return self.getProjects()
         elif command == "REMOVE_PROJECT":
             return self.removeProject(*args, **kargs)
         elif command == "GET_PRIORITY":

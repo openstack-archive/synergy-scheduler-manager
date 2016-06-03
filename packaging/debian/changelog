@@ -1,3 +1,9 @@
+python-synergy-scheduler-manager (0.2-1ubuntu1) unstable; urgency=low
+
+  * Make unit test pass
+
+ -- Vincent Llorens <vincent.llorens@cc.in2p3.fr>  Fri, 03 Jun 2016 09:31:39 +0000
+
 python-synergy-scheduler-manager (0.1-1) unstable; urgency=low
 
   * Initial release

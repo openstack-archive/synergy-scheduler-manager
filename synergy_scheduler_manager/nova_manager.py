@@ -329,7 +329,7 @@ class NovaConductorComputeAPI(ComputeTaskAPI):
 class NovaManager(Manager):
 
     def __init__(self):
-        Manager.__init__(self, name="NovaManager")
+        super(NovaManager, self).__init__(name="NovaManager")
 
         self.config_opts = [
             cfg.StrOpt("nova_conf",
@@ -596,7 +596,7 @@ class NovaManager(Manager):
         if command == "GET_PARAMETER":
             return self.getParameter(*args, **kargs)
         elif command == "GET_FLAVORS":
-            return self.getFlavors(*args, **kargs)
+            return self.getFlavors()
         elif command == "GET_FLAVOR":
             return self.getFlavor(*args, **kargs)
         elif command == "GET_SERVERS":
@@ -622,7 +622,7 @@ class NovaManager(Manager):
         elif command == "GET_TARGET":
             return self.getTarget(*args, **kargs)
         elif command == "GET_RCP_CLIENT":
-            return self.getRPCClient()
+            return self.getRPCClient(*args, **kargs)
         elif command == "GET_RCP_SERVER":
             return self.getRPCServer(*args, **kargs)
         elif command == "GET_NOTIFICATION_LISTENER":
@@ -679,7 +679,7 @@ class NovaManager(Manager):
         except requests.exceptions.HTTPError as ex:
             response = ex.response.json()
             raise Exception("error on retrieving the flavors list: %s"
-                            % (id, response["error"]["message"]))
+                            % response["error"]["message"])
 
         if response_data:
             response_data = response_data["flavors"]
@@ -804,8 +804,8 @@ class NovaManager(Manager):
             response_data = self.getResource(url, "GET", data)
         except requests.exceptions.HTTPError as ex:
             response = ex.response.json()
-            raise Exception("error on retrieving the hypervisors list (id=%r)"
-                            ": %s" % response["error"]["message"])
+            raise Exception("error on retrieving the hypervisors list: %s"
+                            % response["error"]["message"])
 
         if response_data:
             response_data = response_data["hypervisors"]

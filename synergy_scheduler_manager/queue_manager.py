@@ -100,7 +100,7 @@ class QueueItem(object):
         return self.data
 
     def setData(self, data):
-        self.data
+        self.data = data
 
 
 class PriorityQueue(object):
@@ -400,7 +400,7 @@ retry_count, creation_time, last_update, data from `%s`""" % self.name
 class QueueManager(Manager):
 
     def __init__(self):
-        Manager.__init__(self, name="QueueManager")
+        super(QueueManager, self).__init__(name="QueueManager")
 
         self.config_opts = [
             cfg.StrOpt("db_connection", help="the DB url", required=True),

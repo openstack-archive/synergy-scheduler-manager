@@ -47,7 +47,7 @@ class DynamicQuota(object):
         self.ram["limit"] = ram
         self.cores["limit"] = cores
 
-    def getSize(self, cores, ram):
+    def getSize(self):
         return {"cores": self.cores["limit"], "ram": self.ram["limit"]}
 
     def getProjects(self):
@@ -56,7 +56,7 @@ class DynamicQuota(object):
     def getProject(self, prj_id):
         return self.projects.get(prj_id, None)
 
-    def addProject(self, prj_id, prj_name, usage=None, TTL=0):
+    def addProject(self, prj_id, prj_name, usage=None):
         if prj_id not in self.projects:
             with self.condition:
                 project = {"name": prj_name,
@@ -225,7 +225,7 @@ class DynamicQuota(object):
 class QuotaManager(Manager):
 
     def __init__(self):
-        Manager.__init__(self, name="QuotaManager")
+        super(QuotaManager, self).__init__(name="QuotaManager")
 
     def setup(self):
         try:

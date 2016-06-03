@@ -40,7 +40,7 @@ class Notifications(object):
 
         self.dynamic_quota = dynamic_quota
 
-    def info(self, event_type, payload):
+    def info(self, ctxt, publisher_id, event_type, payload, metadata):
         LOG.debug("Notification INFO: event_type=%s payload=%s"
                   % (event_type, payload))
 
@@ -81,15 +81,15 @@ class Notifications(object):
             except Exception as ex:
                 LOG.warn("Notification INFO: %s" % ex)
 
-    def warn(self, event_type, payload):
+    def warn(self, ctxt, publisher_id, event_type, payload, metadata):
         state = payload["state"]
         instance_id = payload["instance_id"]
-        LOG.info("Notification WARN: event_type=%s state=%s instance_id=%s"
-                 % (event_type, state, instance_id))
+        LOG.debug("Notification WARN: event_type=%s state=%s instance_id=%s"
+                  % (event_type, state, instance_id))
 
-    def error(self, event_type, payload, metadata):
-        LOG.info("Notification ERROR: event_type=%s payload=%s metadata=%s"
-                 % (event_type, payload, metadata))
+    def error(self, ctxt, publisher_id, event_type, payload, metadata):
+        LOG.debug("Notification ERROR: event_type=%s payload=%s metadata=%s"
+                  % (event_type, payload, metadata))
 
 
 class Worker(threading.Thread):

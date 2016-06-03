@@ -358,8 +358,8 @@ class FairShareManager(Manager):
                         user_usage["effective_rel_cores"] /= actual_usage_cores
 
                     if actual_usage_ram > 0:
-                        user_usage["effect_rel_ram"] = norm_usage_ram
-                        user_usage["effect_rel_ram"] /= actual_usage_ram
+                        user_usage["effective_rel_ram"] = norm_usage_ram
+                        user_usage["effective_rel_ram"] /= actual_usage_ram
 
                     # user["effect_usage_rel_cores"] = effect_usage_cores /
                     # effect_prj_cores_usage

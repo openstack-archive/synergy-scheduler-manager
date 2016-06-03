@@ -40,7 +40,7 @@ class Notifications(object):
 
         self.dynamic_quota = dynamic_quota
 
-    def info(self, event_type, payload):
+    def info(self, ctxt, publisher_id, event_type, payload, metadata):
         LOG.debug("Notification INFO: event_type=%s payload=%s"
                   % (event_type, payload))
 
@@ -69,8 +69,6 @@ class Notifications(object):
             instance_id = instance_info["instance_id"]
             ram = instance_info["memory_mb"]
             cores = instance_info["vcpus"]
-            # disk = instance_info["root_gb"]
-            # node = instance_info["node"]
 
             LOG.debug("Notification INFO (type=%s state=%s): cores=%s ram=%s "
                       "prj_id=%s instance_id=%s"
@@ -81,15 +79,15 @@ class Notifications(object):
             except Exception as ex:
                 LOG.warn("Notification INFO: %s" % ex)
 
-    def warn(self, event_type, payload):
+    def warn(self, ctxt, publisher_id, event_type, payload, metadata):
         state = payload["state"]
         instance_id = payload["instance_id"]
-        LOG.info("Notification WARN: event_type=%s state=%s instance_id=%s"
-                 % (event_type, state, instance_id))
+        LOG.debug("Notification WARN: event_type=%s state=%s instance_id=%s"
+                  % (event_type, state, instance_id))
 
-    def error(self, event_type, payload, metadata):
-        LOG.info("Notification ERROR: event_type=%s payload=%s metadata=%s"
-                 % (event_type, payload, metadata))
+    def error(self, ctxt, publisher_id, event_type, payload, metadata):
+        LOG.debug("Notification ERROR: event_type=%s payload=%s metadata=%s"
+                  % (event_type, payload, metadata))
 
 
 class Worker(threading.Thread):
@@ -110,7 +108,6 @@ class Worker(threading.Thread):
 
     def destroy(self):
         try:
-            # if self.queue:
             self.queue.close()
 
             self.exit = True
@@ -126,8 +123,6 @@ class Worker(threading.Thread):
                 queue_item = self.queue.getItem()
             except Exception as ex:
                 LOG.error("Worker %r: %s" % (self.name, ex))
-                # self.exit = True
-                # break
                 continue
 
             if queue_item is None:
@@ -137,7 +132,6 @@ class Worker(threading.Thread):
                 request = queue_item.getData()
 
                 instance = request["instance"]
-                # user_id = instance["nova_object.data"]["user_id"]
                 prj_id = instance["nova_object.data"]["project_id"]
                 uuid = instance["nova_object.data"]["uuid"]
                 vcpus = instance["nova_object.data"]["vcpus"]
@@ -153,8 +147,6 @@ class Worker(threading.Thread):
                 image = request["image"]
 
                 try:
-                    # vm_instance = self.novaConductorAPI.instance_get_by_uuid
-                    # (context, instance_uuid=instance_uuid)
                     server = self.nova_manager.execute("GET_SERVER",
                                                        id=uuid)
                 except Exception as ex:
@@ -177,11 +169,6 @@ class Worker(threading.Thread):
                                        cores=vcpus,
                                        ram=memory_mb)
                     continue
-
-                # LOG.info(request_spec)
-
-                # if (self.quota.reserve(instance_uuid, vcpus, memory_mb)):
-                # done = False
 
                 if self.quota.allocate(instance_id=uuid,
                                        prj_id=prj_id,
@@ -217,14 +204,8 @@ class Worker(threading.Thread):
                 self.queue.deleteItem(queue_item)
             except Exception as ex:
                 LOG.error("Worker '%s': %s" % (self.name, ex))
-                # self.queue.reinsertItem(queue_item)
-
                 continue
 
-            # LOG.info("Worker done is %s" % done)
-
-        # LOG.info(">>>> Worker '%s' queue.isClosed %s exit=%s"
-        # % (self.name, self.queue.isClosed(), self.exit))
         LOG.info("Worker '%s' destroyed!" % self.name)
 
 
@@ -423,8 +404,6 @@ class SchedulerManager(Manager):
             memory_mb = instance["nova_object.data"]["memory_mb"]
 
             if prj_id in self.projects:
-                # prj_name = self.projects[prj_id]["name"]
-                # metadata = instance["nova_object.data"]["metadata"]
                 timestamp = instance["nova_object.data"]["created_at"]
                 timestamp = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
                 priority = 0

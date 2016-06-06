@@ -1,8 +1,8 @@
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 
 Name:          python-synergy-scheduler-manager
-Version:       0.1
-Release:       1%{?dist}
+Version:       0.2
+Release:       2%{?dist}
 Summary:       Advanced scheduling capability for OpenStack.
 Source:        %name-%version.tar.bz2
 
@@ -45,3 +45,6 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Fri Jun 03 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 0.2-2
+- Make unit test pass
+

@@ -1,0 +1,17 @@
+FROM ubuntu:14.04
+MAINTAINER Vincent Llorens <vincent.llorens@cc.in2p3.fr>
+RUN apt-get update \
+    && apt-get install -y build-essential \
+                          debhelper \
+                          devscripts \
+                          dh-systemd \
+                          git-core \
+                          python-all \
+                          python-pbr \
+                          python-setuptools
+RUN mkdir /tmp/python-synergy-scheduler-manager
+RUN useradd -m -p pkger pkger
+USER pkger
+COPY build.sh /home/pkger/build.sh
+WORKDIR /home/pkger
+CMD bash build.sh

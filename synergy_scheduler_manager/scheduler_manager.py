@@ -249,7 +249,40 @@ class SchedulerManager(Manager):
         self.listener = None
         self.exit = False
 
-        try:
+    def parseAttribute(self, attribute):
+        if attribute is None:
+            return None
+
+        prj_name = None
+        value = float(0)
+
+        parsed_attribute = re.split('=', attribute)
+
+        if len(parsed_attribute) > 1:
+            if not parsed_attribute[-1].isdigit():
+                raise Exception("wrong value %r found in %r!"
+                                % (parsed_attribute[-1], parsed_attribute))
+
+            if len(parsed_attribute) == 2:
+                prj_name = parsed_attribute[0]
+                value = float(parsed_attribute[1])
+            else:
+                raise Exception("wrong attribute definition: %r"
+                                % parsed_attribute)
+        else:
+            raise Exception("wrong attribute definition: %r"
+                            % parsed_attribute)
+
+        return (prj_name, value)
+
+    def execute(self, command, *args, **kargs):
+        if command == "PROCESS_REQUEST":
+            return self.processRequest(*args, **kargs)
+        else:
+            raise Exception("command=%r not supported!" % command)
+
+    def task(self):
+        if self.listener is None:
             self.dynamic_quota = self.quota_manager.execute(
                 "GET_DYNAMIC_QUOTA")
 
@@ -302,6 +335,9 @@ class SchedulerManager(Manager):
                                                prj_id=prj_id,
                                                prj_name=prj_name,
                                                share=prj_share)
+
+            self.fairshare_manager.execute("CALCULATE_FAIRSHARE")
+
             try:
                 self.dynamic_queue = self.queue_manager.execute("CREATE_QUEUE",
                                                                 name="DYNAMIC")
@@ -320,48 +356,6 @@ class SchedulerManager(Manager):
 
             self.workers.append(dynamic_worker)
 
-            print(self.projects)
-            print(self.dynamic_quota.toDict())
-
-        except Exception as ex:
-            LOG.error("Exception has occured", exc_info=1)
-            LOG.error(ex)
-            raise ex
-
-    def parseAttribute(self, attribute):
-        if attribute is None:
-            return None
-
-        prj_name = None
-        value = float(0)
-
-        parsed_attribute = re.split('=', attribute)
-
-        if len(parsed_attribute) > 1:
-            if not parsed_attribute[-1].isdigit():
-                raise Exception("wrong value %r found in %r!"
-                                % (parsed_attribute[-1], parsed_attribute))
-
-            if len(parsed_attribute) == 2:
-                prj_name = parsed_attribute[0]
-                value = float(parsed_attribute[1])
-            else:
-                raise Exception("wrong attribute definition: %r"
-                                % parsed_attribute)
-        else:
-            raise Exception("wrong attribute definition: %r"
-                            % parsed_attribute)
-
-        return (prj_name, value)
-
-    def execute(self, command, *args, **kargs):
-        if command == "PROCESS_REQUEST":
-            return self.processRequest(*args, **kargs)
-        else:
-            raise Exception("command=%r not supported!" % command)
-
-    def task(self):
-        if self.listener is None:
             self.notifications = Notifications(self.dynamic_quota)
 
             target = self.nova_manager.execute("GET_TARGET",
@@ -375,6 +369,7 @@ class SchedulerManager(Manager):
             LOG.info("listener created")
 
             self.listener.start()
+
         for prj_id, project in self.dynamic_quota.getProjects().items():
             instances = project["instances"]["active"]
             TTL = self.projects[prj_id]["TTL"]

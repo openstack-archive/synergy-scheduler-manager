@@ -100,6 +100,8 @@ class FairShareManager(Manager):
             return result
         elif command == "CALCULATE_PRIORITY":
             return self.calculatePriority(*args, **kargs)
+        elif command == "CALCULATE_FAIRSHARE":
+            return self.calculateFairShare(*args, **kargs)
         else:
             raise Exception("command=%r not supported!" % command)
 
@@ -177,6 +179,9 @@ class FairShareManager(Manager):
                 self.condition.notifyAll()
 
     def calculateFairShare(self):
+        if not self.projects:
+            return
+
         total_prj_share = float(0)
         total_usage_ram = float(0)
         total_usage_cores = float(0)

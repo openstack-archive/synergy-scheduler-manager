@@ -949,7 +949,7 @@ class NovaManager(Manager):
         try:
             ids = ""
 
-            if prj_ids is not None:
+            if prj_ids is not None and prj_ids:
                 ids = " project_id IN ("
 
                 for prj_id in prj_ids:
@@ -972,11 +972,9 @@ launched_at<='%(to_date)s' and (terminated_at>='%(from_date)s' or \
 terminated_at is NULL) group by user_id, project_id\
 """ % {"prj_ids": ids, "from_date": from_date, "to_date": to_date}
 
-            result = connection.execute(QUERY)
+            LOG.debug("getResourceUsage query: %s" % QUERY)
 
-            # LOG.info("QUERY %s\n" % QUERY)
-            # print("from_date %s\n" % from_date)
-            # print("to_date %s\n" % to_date)
+            result = connection.execute(QUERY)
 
             prj_id = 0
             user_id = 0
@@ -1019,6 +1017,8 @@ where project_id='%(project_id)s' and deleted_at is NULL and (vm_state in \
 ('error') or (vm_state in ('active') and terminated_at is NULL))\
 """ % {"project_id": prj_id}
 
+            LOG.debug("getProjectUsage query: %s" % QUERY)
+
             result = connection.execute(QUERY)
 
             for row in result.fetchall():
@@ -1051,7 +1051,8 @@ utc_timestamp()) >= 20))))""" % {"project_id": prj_id,
                                  "instances": ids,
                                  "expiration": TTL}
 
-            # LOG.info(QUERY)
+            LOG.debug("getProjectUsage query: %s" % QUERY)
+
             result = connection.execute(QUERY)
 
             for row in result.fetchall():

@@ -15,6 +15,7 @@ Requires:      python-pbr
 Requires:      python-synergy-service
 Requires:      python-oslo-config
 Requires:      python-oslo-messaging
+Requires:      python-requests
 Requires:      python-sqlalchemy
 
 

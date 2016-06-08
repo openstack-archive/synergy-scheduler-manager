@@ -3,8 +3,8 @@
 # process, which may cause wedges in the gate later.
 
 pbr>=1.6
-synergy-service==0.2.0.dev4
-oslo.config<2.0.0
-oslo.messaging<2.0.0
+synergy-service>=0.0.1.dev1,<1.0.0
+oslo.config>=2.4.0,<3.0.0
+oslo.messaging>=2.5.0,<3.0.0
 requests>=2.7.0,<3.0.0
 sqlalchemy>=1.0.0,<1.1.0

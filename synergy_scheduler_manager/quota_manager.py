@@ -343,7 +343,7 @@ class QuotaManager(Manager):
 
             ram_ratio = self.nova_manager.execute("GET_PARAMETER",
                                                   name="ram_allocation_ratio",
-                                                  default=float(16))
+                                                  default=float(1.5))
 
             quota_default = self.nova_manager.execute("GET_QUOTA",
                                                       defaults=True)
@@ -362,14 +362,10 @@ class QuotaManager(Manager):
             total_ram *= float(ram_ratio)
             total_cores *= float(cpu_ratio)
 
-            # LOG.info("total_ram=%s total_cores=%s"
-            # % (total_ram, total_cores))
-
             kprojects = self.keystone_manager.execute("GET_PROJECTS")
 
             for project in kprojects:
                 prj_id = project["id"]
-                # prj_name = str(project["name"])
 
                 if self.dynamic_quota.getProject(prj_id) is None:
                     quota = self.nova_manager.execute("GET_QUOTA", prj_id)

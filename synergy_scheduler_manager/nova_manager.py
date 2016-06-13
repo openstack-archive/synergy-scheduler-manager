@@ -853,9 +853,11 @@ class NovaManager(Manager):
 
         return response_data
 
-    def updateQuota(self, id, data):
+    def updateQuota(self, id, cores, ram, instances):
         url = "os-quota-sets/%s" % id
-        quota_set = {"quota_set": data}
+        quota_set = {"quota_set": {"cores": cores,
+                                   "ram": ram,
+                                   "instances": instances}}
 
         try:
             response_data = self.getResource(url, "PUT", quota_set)
@@ -936,13 +938,6 @@ class NovaManager(Manager):
         return self.messagingAPI.getNotificationListener(targets, endpoints)
 
     def getResourceUsage(self, prj_ids, from_date, to_date):
-        # LOG.info("getUsage: fromDate=%s period_length=%s days"
-        #          % (fromDate, period_length))
-        # print("getUsage: fromDate=%s period_length=%s days"
-        #       % (fromDate, period_length))
-
-        # period = str(period_length)
-
         resource_usage = {}
         connection = self.db_engine.connect()
 
@@ -982,7 +977,6 @@ terminated_at is NULL) group by user_id, project_id\
 
             # for row in result.fetchall():
             for row in result:
-                # LOG.info("row=%s" % row)
                 user_id = row[0]
                 prj_id = row[1]
 

@@ -75,6 +75,9 @@ class DynamicQuota(object):
 
                 self.projects[prj_id] = project
                 self.condition.notifyAll()
+        else:
+            raise Exception("project %r (id=%s) alredy added!"
+                            % (prj_name, prj_id))
 
     def removeProject(self, prj_id):
         if prj_id in self.projects:
@@ -271,13 +274,13 @@ class QuotaManager(Manager):
         return self.dynamic_quota.getProject(prj_id)
 
     def addProject(self, prj_id, prj_name):
-        try:
-            quota = {"cores": -1, "ram": -1, "instances": -1}
-            self.nova_manager.execute("UPDATE_QUOTA", prj_id, quota)
+        if self.dynamic_quota.getProject(prj_id) is not None:
+            raise Exception("project %r (id=%s) alredy added!"
+                            % (prj_name, prj_id))
 
+        try:
             usage = self.nova_manager.execute("GET_PROJECT_USAGE", prj_id)
             self.dynamic_quota.addProject(prj_id, prj_name, usage)
-
             self.updateDynamicQuota()
         except Exception as ex:
             LOG.error(ex)
@@ -296,9 +299,6 @@ class QuotaManager(Manager):
 
                 for instance_id in ids:
                     self.nova_manager.execute("DELETE_SERVER", instance_id)
-
-            quota = self.nova_manager.execute("GET_QUOTA", defaults=True)
-            self.nova_manager.execute("UPDATE_QUOTA", prj_id, quota)
 
             self.dynamic_quota.removeProject(prj_id)
 
@@ -345,9 +345,6 @@ class QuotaManager(Manager):
                                                   name="ram_allocation_ratio",
                                                   default=float(1.5))
 
-            quota_default = self.nova_manager.execute("GET_QUOTA",
-                                                      defaults=True)
-
             hypervisors = self.nova_manager.execute("GET_HYPERVISORS")
 
             for hypervisor in hypervisors:
@@ -370,37 +367,29 @@ class QuotaManager(Manager):
                 if self.dynamic_quota.getProject(prj_id) is None:
                     quota = self.nova_manager.execute("GET_QUOTA", prj_id)
 
-                    if quota["cores"] == -1 and quota["ram"] == -1:
-                        quota["cores"] = quota_default["cores"]
-                        quota["ram"] = quota_default["ram"]
-
-                        try:
-                            self.nova_manager.execute("UPDATE_QUOTA",
-                                                      prj_id,
-                                                      quota_default)
-                        except Exception as ex:
-                            LOG.error(ex)
-
                     static_cores += quota["cores"]
                     static_ram += quota["ram"]
 
             enabled = False
 
             if total_cores < static_cores:
-                LOG.warn("dynamic quota: the total statically "
-                         "allocated cores (%s) is greater than the total "
-                         "amount of cores allowed (%s)"
-                         % (static_cores, total_cores))
+                if self.dynamic_quota.getProjects():
+                    LOG.warn("dynamic quota: the total statically "
+                             "allocated cores (%s) is greater than the "
+                             "total amount of cores allowed (%s)"
+                             % (static_cores, total_cores))
             else:
                 enabled = True
                 dynamic_cores = total_cores - static_cores
 
             if total_ram < static_ram:
                 enabled = False
-                LOG.warn("dynamic quota: the total statically "
-                         "allocated ram (%s) is greater than the total "
-                         "amount of ram allowed (%s)"
-                         % (static_ram, total_ram))
+
+                if self.dynamic_quota.getProjects():
+                    LOG.warn("dynamic quota: the total statically "
+                             "allocated ram (%s) is greater than the "
+                             "total amount of ram allowed (%s)"
+                             % (static_ram, total_ram))
             else:
                 enabled = True
                 dynamic_ram = total_ram - static_ram

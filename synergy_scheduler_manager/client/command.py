@@ -217,11 +217,17 @@ class GetShare(Execute):
         super(GetShare, self).__init__("GET_SHARE")
 
     def configureParser(self, subparser):
-        subparser.add_parser("get_share",
-                             add_help=True,
-                             help="shows the users share")
+        parser = subparser.add_parser("get_share",
+                                      add_help=True,
+                                      help="shows the users share")
+
+        parser.add_argument("--long",
+                            action='store_true',
+                            help="shows more details")
 
     def sendRequest(self, synergy_url, args):
+        self.long = args.long
+
         super(GetShare, self).sendRequest(
             synergy_url + "/synergy/execute",
             "FairShareManager",
@@ -233,41 +239,65 @@ class GetShare(Execute):
         max_prj = len("project")
         max_usr = len("user")
         max_prj_share = len("share")
-        max_usr_share = len("share (abs)")
+        max_usr_share = len("share")
 
-        for project in projects.values():
-            max_prj = max(len(project["name"]), max_prj)
-            max_prj_share = max(len("{:.2f}".format(project["share"])),
-                                max_prj_share)
+        if self.long:
+            for project in projects.values():
+                max_prj = max(len(project["name"]), max_prj)
+                max_prj_share = max(len("{:.2f}% ({:.2f})".format(
+                    project["norm_share"] * 100, project["share"])),
+                    max_prj_share)
 
-            for user in project["users"].values():
-                max_usr = max(len(user["name"]), max_usr)
-                max_usr_share = max(
-                    len("{:.2f} ({:.2f})".format(user["share"],
-                        user["norm_share"])),
-                    max_usr_share)
+                for user in project["users"].values():
+                    max_usr = max(len(user["name"]), max_usr)
+                    max_usr_share = max(
+                        len("{:.2f}%".format(user["norm_share"] * 100)),
+                        max_usr_share)
 
-        separator_str = "-" * (max_prj + max_usr + max_prj_share +
+            separator = "-" * (max_prj + max_usr + max_prj_share +
                                max_usr_share + 13) + "\n"
 
-        data_str = "| {0:%ss} | {1:%ss} | {2:%ss} | {3:%ss} |\n" % (
-            max_prj, max_prj_share, max_usr, max_usr_share)
+            raw = "| {0:%ss} | {1:%ss} | {2:%ss} | {3:%ss} |\n" % (
+                  max_prj, max_prj_share, max_usr, max_usr_share)
 
-        msg = separator_str
-        msg += data_str.format("project", "share", "user", "share (abs)")
-        msg += separator_str
+            msg = separator
+            msg += raw.format("project", "share", "user", "share")
+            msg += separator
 
-        for project in projects.values():
-            for user in project["users"].values():
-                msg += data_str.format(
+            for project in projects.values():
+                for user in project["users"].values():
+                    msg += raw.format(
+                        project["name"],
+                        "{:.2f}% ({:.2f})".format(project["norm_share"] * 100,
+                                                  project["share"]),
+                        user["name"],
+                        "{:.2f}%".format(user["norm_share"] * 100))
+
+            msg += separator
+            print(msg)
+        else:
+            for project in projects.values():
+                max_prj = max(len(project["name"]), max_prj)
+                max_prj_share = max(len("{:.2f}% ({:.2f})".format(
+                    project["norm_share"] * 100, project["share"])),
+                    max_prj_share)
+
+            separator = "-" * (max_prj + max_prj_share + 7) + "\n"
+
+            raw = "| {0:%ss} | {1:%ss} |\n" % (max_prj, max_prj_share)
+
+            msg = separator
+            msg += raw.format("project", "share")
+            msg += separator
+
+            for project in projects.values():
+                msg += raw.format(
                     project["name"],
-                    "{:.2f}".format(project["share"]),
-                    user["name"],
-                    "{:.2f} ({:.2f})".format(user["share"],
-                                             user["norm_share"]))
+                    "{:.2f}% ({:.2f})".format(project["norm_share"] * 100,
+                                              project["share"]))
 
-        msg += separator_str
-        print(msg)
+            msg += separator
+            print(msg)
 
 
 class GetUsage(Execute):

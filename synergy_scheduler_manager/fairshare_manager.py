@@ -289,8 +289,10 @@ class FairShareManager(Manager):
                 if prj_share > 0 and sibling_share > 0 and total_prj_share > 0:
                     user["norm_share"] = (user_share / sibling_share) * \
                                          (prj_share / total_prj_share)
+                    project["norm_share"] = prj_share / total_prj_share
                 else:
                     user["norm_share"] = user_share
+                    project["norm_share"] = prj_share
 
                 if total_usage_ram > 0:
                     user_usage["norm_ram"] /= total_usage_ram

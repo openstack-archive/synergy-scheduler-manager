@@ -286,6 +286,8 @@ class SchedulerManager(Manager):
             self.dynamic_quota = self.quota_manager.execute(
                 "GET_DYNAMIC_QUOTA")
 
+            defaults = self.nova_manager.execute("GET_QUOTA", defaults=True)
+
             k_projects = self.keystone_manager.execute("GET_PROJECTS")
 
             for k_project in k_projects:
@@ -300,6 +302,23 @@ class SchedulerManager(Manager):
                                                "type": "dynamic",
                                                "share": float(0),
                                                "TTL": self.default_TTL}
+
+                    self.nova_manager.execute("UPDATE_QUOTA",
+                                              id=prj_id,
+                                              cores=-1,
+                                              ram=-1,
+                                              instances=-1)
+                else:
+                    quota = self.nova_manager.execute("GET_QUOTA", id=prj_id)
+
+                    if quota["cores"] == -1 and quota["ram"] == -1 and \
+                            quota["instances"] == -1:
+                        self.nova_manager.execute(
+                            "UPDATE_QUOTA",
+                            id=prj_id,
+                            cores=defaults["cores"],
+                            ram=defaults["ram"],
+                            instances=defaults["instances"])
 
             if len(CONF.SchedulerManager.projects) > 0:
                 raise Exception("projects %s not found"
@@ -320,12 +339,6 @@ class SchedulerManager(Manager):
 
                 del self.projects[prj_name]
                 self.projects[prj_id] = project
-
-                quota = {"cores": -1, "ram": -1, "instances": -1}
-
-                self.nova_manager.execute("UPDATE_QUOTA",
-                                          id=prj_id,
-                                          data=quota)
 
                 self.quota_manager.execute("ADD_PROJECT",
                                            prj_id=prj_id,

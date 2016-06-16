@@ -321,7 +321,7 @@ class QuotaManager(Manager):
                                                         instances=instance_ids,
                                                         expiration=TTL)
 
-                for instance_id in expired_ids:
+                for instance_id in expired_ids.keys():
                     self.nova_manager.execute("DELETE_SERVER", instance_id)
             except Exception as ex:
                 LOG.error(ex)

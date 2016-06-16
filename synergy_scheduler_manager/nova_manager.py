@@ -1007,8 +1007,8 @@ terminated_at is NULL) group by user_id, project_id\
             # retrieve the amount of resources in terms of cores
             # and ram the specified project is consuming
             QUERY = """select uuid, vcpus, memory_mb from nova.instances \
-where project_id='%(project_id)s' and deleted_at is NULL and (vm_state in \
-('error') or (vm_state in ('active') and terminated_at is NULL))\
+where project_id='%(project_id)s' and deleted_at is NULL and (vm_state=\
+'error' or (vm_state='active' and terminated_at is NULL))\
 """ % {"project_id": prj_id}
 
             LOG.debug("getProjectUsage query: %s" % QUERY)
@@ -1027,7 +1027,7 @@ where project_id='%(project_id)s' and deleted_at is NULL and (vm_state in \
         return usage
 
     def getExpiredServers(self, prj_id, instances, TTL):
-        uuids = []
+        servers = {}
         connection = self.db_engine.connect()
 
         try:
@@ -1035,25 +1035,22 @@ where project_id='%(project_id)s' and deleted_at is NULL and (vm_state in \
             # project and expiration time
             ids = "'%s'" % "', '".join(instances)
 
-            QUERY = """select uuid from nova.instances where project_id = \
-'%(project_id)s' and deleted_at is NULL and (vm_state in ('error') or \
-(uuid in (%(instances)s) and ((vm_state in ('active') and terminated_at is \
-NULL and timestampdiff(minute, launched_at, utc_timestamp()) >= \
-%(expiration)s) or (vm_state in ('building') and task_state in ('scheduling') \
-and created_at != updated_at and timestampdiff(minute, updated_at, \
-utc_timestamp()) >= 20))))""" % {"project_id": prj_id,
-                                 "instances": ids,
-                                 "expiration": TTL}
+            QUERY = """select uuid, vm_state from nova.instances where project_id = \
+'%(project_id)s' and deleted_at is NULL and (vm_state='error' or \
+(uuid in (%(instances)s) and vm_state='active' and terminated_at is NULL \
+and timestampdiff(minute, launched_at, utc_timestamp()) >= %(expiration)s))\
+""" % {"project_id": prj_id, "instances": ids, "expiration": TTL}
 
-            LOG.debug("getProjectUsage query: %s" % QUERY)
+            LOG.debug("getExpiredServers query: %s" % QUERY)
 
             result = connection.execute(QUERY)
 
             for row in result.fetchall():
-                uuids.append(row[0])
+                servers[row[0]] = row[1]
+
         except SQLAlchemyError as ex:
             raise Exception(ex.message)
         finally:
             connection.close()
 
-        return uuids
+        return servers

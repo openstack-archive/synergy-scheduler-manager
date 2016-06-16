@@ -154,20 +154,25 @@ class Worker(threading.Thread):
                              % (self.name, uuid, ex))
                     self.queue.deleteItem(queue_item)
 
+                    self.nova_manager.execute("DELETE_SERVER", id=uuid)
+                    """
                     self.quota.release(instance_id=uuid,
                                        prj_id=prj_id,
                                        cores=vcpus,
                                        ram=memory_mb)
+                    """
                     continue
 
                 if server["OS-EXT-STS:vm_state"] != "building" or \
                    server["OS-EXT-STS:task_state"] != "scheduling":
                     self.queue.deleteItem(queue_item)
 
+                    """
                     self.quota.release(instance_id=uuid,
                                        prj_id=prj_id,
                                        cores=vcpus,
                                        ram=memory_mb)
+                    """
                     continue
 
                 if self.quota.allocate(instance_id=uuid,
@@ -386,14 +391,22 @@ class SchedulerManager(Manager):
         for prj_id, project in self.dynamic_quota.getProjects().items():
             instances = project["instances"]["active"]
             TTL = self.projects[prj_id]["TTL"]
-            uuids = self.nova_manager.execute("GET_EXPIRED_SERVERS",
-                                              prj_id=prj_id,
-                                              instances=instances,
-                                              TTL=TTL)
+            servers = self.nova_manager.execute("GET_EXPIRED_SERVERS",
+                                                prj_id=prj_id,
+                                                instances=instances,
+                                                TTL=TTL)
 
-            for uuid in uuids:
-                LOG.info("deleting the expired instance %r from project=%s"
-                         % (uuid, prj_id))
+            for uuid, state in servers.items():
+                if state == "error":
+                    LOG.info("the server istance %r will be destroyed because "
+                             "it is in %s state (TTL=%s, prj_id=%r)"
+                             % (uuid, state, TTL, prj_id))
+                else:
+                    LOG.info("the server istance %r will be destroyed because "
+                             "it exceeded its maximum time to live (TTL=%s, "
+                             "state=%s, prj_id=%r)"
+                             % (uuid, TTL, state, prj_id))
+
                 self.nova_manager.execute("DELETE_SERVER", id=uuid)
 
     def destroy(self):
@@ -426,7 +439,7 @@ class SchedulerManager(Manager):
                                                        prj_id=prj_id,
                                                        cores=vcpus,
                                                        ram=memory_mb)
-                            priority = 999999999999
+                            priority = 99999999
                             LOG.info("released resource uuid %s "
                                      "num_attempts %s" % (uuid, num_attempts))
                 except Exception as ex:

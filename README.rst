@@ -16,11 +16,6 @@ schedulers.
 
 
 * Free software: Apache license
-* Documentation: http://docs.openstack.org/developer/synergy-scheduler-manager
+* Documentation: https://indigo-dc.gitbooks.io/synergy/content/
 * Source: http://git.openstack.org/cgit/openstack/synergy-scheduler-manager
 * Bugs: http://bugs.launchpad.net/synergy-scheduler-manager
-
-Features
---------
-
-* TODO

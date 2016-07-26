@@ -1,7 +1,7 @@
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 
 Name:          python-synergy-scheduler-manager
-Version:       1.0.0
+Version:       1.0.1
 Release:       1%{?dist}
 Summary:       Advanced scheduling capability for OpenStack.
 Source:        %name-%version.tar.bz2
@@ -46,6 +46,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Tue Jul 26 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr - 1.0.1-1
+- Fix broken link in README
+
 * Fri Jun 17 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 1.0.0-1
 - First public release of Synergy, full set of functionalities.
 

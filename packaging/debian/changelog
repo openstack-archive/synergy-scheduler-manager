@@ -1,3 +1,9 @@
+python-synergy-scheduler-manager (1.0.1) unstable; urgency=low
+
+  * Fix broken link in README
+
+ -- Vincent Llorens <vincent.llorens@cc.in2p3.fr>  Tue, 26 Jul 2016 14:02:07 +0020
+
 python-synergy-scheduler-manager (1.0.0-1ubuntu1) unstable; urgency=low
 
   * First public release with full set of functionalities.

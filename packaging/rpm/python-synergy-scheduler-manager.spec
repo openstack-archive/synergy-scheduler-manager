@@ -1,7 +1,7 @@
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 
 Name:          python-synergy-scheduler-manager
-Version:       1.0.1
+Version:       1.0.2
 Release:       1%{?dist}
 Summary:       Advanced scheduling capability for OpenStack.
 Source:        %name-%version.tar.bz2
@@ -11,12 +11,13 @@ License:       ASL 2.0
 BuildArch:     noarch
 BuildRequires: python-devel
 BuildRequires: python-setuptools
-Requires:      python-pbr
-Requires:      python-synergy-service
+Requires:      python-nova
 Requires:      python-oslo-config
 Requires:      python-oslo-messaging
+Requires:      python-pbr
 Requires:      python-requests
 Requires:      python-sqlalchemy
+Requires:      python-synergy-service
 
 
 %description
@@ -46,6 +47,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Mon Aug 22 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 1.0.2-1
+- Add python-nova dependency
+
 * Tue Jul 26 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr - 1.0.1-1
 - Fix broken link in README
 

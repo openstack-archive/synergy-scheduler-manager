@@ -15,7 +15,7 @@ Vcs-Browser: https://git.openstack.org/cgit/openstack/synergy-scheduler-manager
 
 Package: python-synergy-scheduler-manager
 Architecture: all
-Depends: ${python:Depends}, ${misc:Depends}
+Depends: ${python:Depends}, ${misc:Depends}, python-nova
 Description: Advanced scheduling capability for OpenStack.
  The Scheduler Manager provides advanced scheduling (fairshare) capability for
  OpenStack.  In particular it aims to address the resource utilization issues

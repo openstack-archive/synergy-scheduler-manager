@@ -1,3 +1,9 @@
+python-synergy-scheduler-manager (1.0.2ubuntu1) unstable; urgency=medium
+
+  * Add "python-nova" as a dependency
+
+ -- Vincent Llorens <vincent.llorens@cc.in2p3.fr>  Mon, 22 Aug 2016 16:39:53 +0200
+
 python-synergy-scheduler-manager (1.0.1) unstable; urgency=low
 
   * Fix broken link in README

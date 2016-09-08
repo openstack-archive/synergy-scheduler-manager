@@ -1,6 +1,6 @@
 FROM centos:7
 MAINTAINER Vincent Llorens <vincent.llorens@cc.in2p3.fr>
-RUN yum install -y https://repos.fedorapeople.org/repos/openstack/openstack-liberty/rdo-release-liberty-3.noarch.rpm \
+RUN yum install -y centos-release-openstack-liberty \
                    rpm-build \
                    python-devel \
                    python-setuptools \

@@ -2,9 +2,12 @@
 # of appearance. Changing the order has an impact on the overall integration
 # process, which may cause wedges in the gate later.
 
-pbr>=1.6
-synergy-service>=1.0.0,<1.1.0
-oslo.config>=2.4.0,<3.0.0
-oslo.messaging>=2.5.0,<3.0.0
-requests>=2.7.0,<3.0.0
-sqlalchemy>=1.0.0,<1.1.0
+pbr~=1.8
+
+oslo.config~=2.4
+oslo.messaging~=2.5
+oslo.serialization~=1.9
+oslo.versionedobjects~=0.10
+requests>=2.0.0,<3.0.0  # availability: 2.10.0 on CentOS 7, 2.7.0 on Ubuntu 14.04
+sqlalchemy~=1.0
+synergy-service~=1.0.1

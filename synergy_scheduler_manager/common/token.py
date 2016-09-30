@@ -1,11 +1,11 @@
 import json
 import os.path
 
+from datetime import datetime
 from endpoint import Endpoint
 from project import Project
 from role import Role
 from service import Service
-from datetime import datetime
 from synergy.common.serializer import SynergyObject
 from synergy_scheduler_manager.common.user import User
 

@@ -407,6 +407,7 @@ class QueueManager(Manager):
             cfg.IntOpt('db_pool_size', default=10, required=False),
             cfg.IntOpt('db_max_overflow', default=5, required=False)
         ]
+        self.queue_list = {}
 
     def setup(self):
         if self.getManager("FairShareManager") is None:
@@ -414,7 +415,6 @@ class QueueManager(Manager):
 
         self.fairshare_manager = self.getManager("FairShareManager")
 
-        self.queue_list = {}
         db_connection = CONF.QueueManager.db_connection
         pool_size = CONF.QueueManager.db_pool_size
         max_overflow = CONF.QueueManager.db_max_overflow

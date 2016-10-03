@@ -212,6 +212,7 @@ class SchedulerManager(Manager):
             cfg.ListOpt("shares", default=[], help="the shares list"),
             cfg.ListOpt("TTLs", default=[], help="the TTLs list"),
         ]
+        self.workers = []
 
     def setup(self):
         if self.getManager("NovaManager") is None:
@@ -237,7 +238,6 @@ class SchedulerManager(Manager):
         self.default_TTL = float(CONF.SchedulerManager.default_TTL)
         self.fairshare_manager = self.getManager("FairShareManager")
         self.projects = {}
-        self.workers = []
         self.listener = None
         self.exit = False
 

@@ -1,4 +1,4 @@
-from synergy.client.command import Execute
+from synergy.client.command import ExecuteCommand
 
 __author__ = "Lisa Zangrando"
 __email__ = "lisa.zangrando[AT]pd.infn.it"
@@ -19,7 +19,7 @@ See the License for the specific language governing
 permissions and limitations under the License."""
 
 
-class GetQuota(Execute):
+class GetQuota(ExecuteCommand):
 
     def __init__(self):
         super(GetQuota, self).__init__("GET_DYNAMIC_QUOTA")
@@ -117,7 +117,7 @@ class GetQuota(Execute):
             print(msg)
 
 
-class GetPriority(Execute):
+class GetPriority(ExecuteCommand):
 
     def __init__(self):
         super(GetPriority, self).__init__("GET_PRIORITY")
@@ -169,7 +169,7 @@ class GetPriority(Execute):
         print(msg)
 
 
-class GetQueue(Execute):
+class GetQueue(ExecuteCommand):
 
     def __init__(self):
         super(GetQueue, self).__init__("GET_QUEUE")
@@ -211,7 +211,7 @@ class GetQueue(Execute):
         print(msg)
 
 
-class GetShare(Execute):
+class GetShare(ExecuteCommand):
 
     def __init__(self):
         super(GetShare, self).__init__("GET_SHARE")
@@ -300,7 +300,7 @@ class GetShare(Execute):
             print(msg)
 
 
-class GetUsage(Execute):
+class GetUsage(ExecuteCommand):
 
     def __init__(self):
         super(GetUsage, self).__init__("GET_USAGE")

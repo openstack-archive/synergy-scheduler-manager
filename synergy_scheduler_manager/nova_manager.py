@@ -548,12 +548,14 @@ class NovaManager(Manager):
 
             self.db_engine = create_engine(db_connection)
 
-            transport_url = "%s://%s:%s@%s:%s%s" % (amqp_backend,
-                                                    amqp_user,
-                                                    amqp_password,
-                                                    amqp_host,
-                                                    amqp_port,
-                                                    amqp_virt_host)
+            transport_url = "{b}://{user}:{password}@{host}:{port}/{virt_host}"
+            transport_url = transport_url.format(
+                b=amqp_backend,
+                user=amqp_user,
+                password=amqp_password,
+                host=amqp_host,
+                port=amqp_port,
+                virt_host=amqp_virt_host)
 
             self.messagingAPI = MessagingAPI(transport_url)
 

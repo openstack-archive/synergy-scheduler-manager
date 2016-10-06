@@ -14,7 +14,8 @@ from datetime import datetime
 
 from mock import MagicMock
 from mock import patch
-
+from synergy_scheduler_manager.common.project import Project
+from synergy_scheduler_manager.common.user import User
 from synergy_scheduler_manager.fairshare_manager import FairShareManager
 from synergy_scheduler_manager.keystone_manager import KeystoneManager
 from synergy_scheduler_manager.queue_manager import QueueManager
@@ -44,66 +45,69 @@ class TestFairshareManager(base.TestCase):
             self.fsmanager.setup()
 
     def test_add_project(self):
-        self.fsmanager.addProject(prj_id=1, prj_name="test_project", share=5)
+        project = Project()
+        project.setId(1)
+        project.setName("test_project")
+        prj_share = project.getShare()
+        prj_share.setValue(5)
+        self.fsmanager.addProject(project)
 
-        self.assertEqual(1, self.fsmanager.projects[1]["id"])
-        self.assertEqual("test_project", self.fsmanager.projects[1]["name"])
-        self.assertEqual("dynamic", self.fsmanager.projects[1]["type"])
-        self.assertEqual({}, self.fsmanager.projects[1]["users"])
-        self.assertEqual({}, self.fsmanager.projects[1]["usage"])
-        self.assertEqual(5, self.fsmanager.projects[1]["share"])
+        self.assertEqual(1, self.fsmanager.projects[1].getId())
+        self.assertEqual("test_project", self.fsmanager.projects[1].getName())
+        self.assertEqual([], self.fsmanager.projects[1].getUsers())
+        self.assertEqual(5, self.fsmanager.projects[1].getShare().getValue())
 
     def test_add_project_no_share(self):
-        self.fsmanager.addProject(prj_id=1, prj_name="test_project")
+        project = Project()
+        project.setId(1)
+        project.setName("test_project")
+        self.fsmanager.addProject(project)
 
-        self.assertEqual(1, self.fsmanager.projects[1]["id"])
-        self.assertEqual("test_project", self.fsmanager.projects[1]["name"])
-        self.assertEqual("dynamic", self.fsmanager.projects[1]["type"])
-        self.assertEqual({}, self.fsmanager.projects[1]["users"])
-        self.assertEqual({}, self.fsmanager.projects[1]["usage"])
+        self.assertEqual(1, self.fsmanager.projects[1].getId())
+        self.assertEqual("test_project", self.fsmanager.projects[1].getName())
+        self.assertEqual([], self.fsmanager.projects[1].getUsers())
         self.assertEqual(self.fsmanager.default_share,
-                         self.fsmanager.projects[1]["share"])
+                         self.fsmanager.projects[1].getShare().getValue())
 
     def test_get_project(self):
-        self.fsmanager.addProject(prj_id=1, prj_name="test_project")
+        project = Project()
+        project.setId(1)
+        project.setName("test_project")
+        self.fsmanager.addProject(project)
 
-        expected_project = {
-            "id": 1,
-            "name": "test_project",
-            "type": "dynamic",
-            "users": {},
-            "usage": {},
-            "share": self.fsmanager.default_share}
-        self.assertEqual(expected_project, self.fsmanager.getProject(1))
+        self.assertEqual(project, self.fsmanager.getProject(1))
 
     def test_get_projects(self):
-        self.fsmanager.addProject(prj_id=1, prj_name="test1")
-        self.fsmanager.addProject(prj_id=2, prj_name="test2")
+        project1 = Project()
+        project1.setId(1)
+        project1.setName("test1")
+        self.fsmanager.addProject(project1)
+
+        project2 = Project()
+        project2.setId(2)
+        project2.setName("test2")
+        self.fsmanager.addProject(project2)
 
         expected_projects = {
-            1: {"id": 1,
-                "name": "test1",
-                "type": "dynamic",
-                "users": {},
-                "usage": {},
-                "share": self.fsmanager.default_share},
-            2: {"id": 2,
-                "name": "test2",
-                "type": "dynamic",
-                "users": {},
-                "usage": {},
-                "share": self.fsmanager.default_share}}
+            1: project1,
+            2: project2}
         self.assertEqual(expected_projects, self.fsmanager.getProjects())
 
     def test_remove_project(self):
-        self.fsmanager.addProject(prj_id=1, prj_name="test")
+        project = Project()
+        project.setId(1)
+        project.setName("test_project")
+        self.fsmanager.addProject(project)
 
         self.assertIn(1, self.fsmanager.projects)
         self.fsmanager.removeProject(1)
         self.assertNotIn(1, self.fsmanager.projects)
 
     def test_calculate_priority_one_user(self):
-        self.fsmanager.addProject(prj_id=1, prj_name="test")
+        # self.fsmanager.addProject(prj_id=1, prj_name="test")
+        project = Project()
+        project.setId(1)
+        project.setName("test_project")
 
         # Define values used for computing the priority
         age_weight = self.fsmanager.age_weight = 1.0
@@ -116,9 +120,15 @@ class TestFairshareManager(base.TestCase):
         fairshare_ram = 50
 
         # Add a user to the project
-        self.fsmanager.projects[1]["users"] = {
-            1: {"fairshare_cores": fairshare_cores,
-                "fairshare_ram": fairshare_ram}}
+        user = User()
+        user.setId(22)
+        user.setName("test_user")
+        priority = user.getPriority()
+        priority.setFairShare('vcpus', fairshare_cores)
+        priority.setFairShare('memory', fairshare_ram)
+
+        project.addUser(user)
+        self.fsmanager.addProject(project)
 
         # Compute the expected priority given the previously defined values
         expected_priority = int(age_weight * minutes +
@@ -128,7 +138,7 @@ class TestFairshareManager(base.TestCase):
         with patch("synergy_scheduler_manager.fairshare_manager.datetime") \
                 as datetime_mock:
             datetime_mock.utcnow.side_effect = (datetime_start, datetime_stop)
-            priority = self.fsmanager.calculatePriority(user_id=1, prj_id=1)
+            priority = self.fsmanager.calculatePriority(user_id=22, prj_id=1)
 
         self.assertEqual(expected_priority, priority)
 

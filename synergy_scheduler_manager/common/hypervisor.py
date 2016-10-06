@@ -46,6 +46,12 @@ class Hypervisor(Service):
     def setState(self, state):
         self.set("state", state)
 
+    def getStatus(self):
+        return self.get("status")
+
+    def setStatus(self, status):
+        self.set("status", status)
+
     def getWorkload(self):
         return self.get("workload")
 

@@ -1,4 +1,4 @@
-import synergy.common.utils as utils
+import utils
 
 from datetime import datetime
 from synergy.common.serializer import SynergyObject
@@ -69,10 +69,11 @@ class Server(SynergyObject):
     def setMetadata(self, metadata):
         self.set("metadata", metadata)
 
-        if "quota" in metadata and metadata["quota"] == "shared":
-            self.setType("ephemeral")
-        else:
-            self.setType("permanent")
+        if "quota" in metadata:
+            if metadata["quota"] == "shared":
+                self.setType("ephemeral")
+            else:
+                self.setType("permanent")
 
     def getUserData(self):
         return self.get("userdata")

@@ -72,21 +72,3 @@ class Project(SynergyObject):
 
     def setEnabled(self, enabled=True):
         self.set("enabled", enabled)
-
-
-def main():
-    project = Project()
-    project.setId("22222222")
-    project.setName("LISA")
-
-    print(project.getName())
-    ser = project.serialize()
-    print(ser)
-
-    project1 = SynergyObject.deserialize(ser)
-    print(project1.serialize())
-    print(project1.getName())
-
-
-if __name__ == "__main__":
-    main()

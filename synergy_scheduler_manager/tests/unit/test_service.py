@@ -33,9 +33,9 @@ class TestService(base.TestCase):
         self.service.setDescription('description')
         self.assertEqual('description', self.service.getDescription())
 
-    def test_set_get_Status(self):
-        self.service.setStatus('enabled')
-        self.assertEqual('enabled', self.service.getStatus())
+    def test_set_get_Enabled(self):
+        self.service.setEnabled(True)
+        self.assertEqual(True, self.service.isEnabled())
 
     def test_isEnable(self):
         self.assertEqual(False, self.service.isEnabled())

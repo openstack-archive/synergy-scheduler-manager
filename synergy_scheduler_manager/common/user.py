@@ -59,24 +59,3 @@ class User(SynergyObject):
 
     def setEnabled(self, enabled=True):
         self.set("enabled", enabled)
-
-
-def main():
-    user = User()
-    user.setId("22222222")
-    user.setName("LISA")
-    user.setProjectId("pippo")
-    data = user.getData()
-    data["a"] = "b"
-    share = user.getShare()
-    share.setValue("10")
-
-    ser = user.serialize()
-    print(ser)
-
-    user1 = SynergyObject.deserialize(ser)
-    print(user1.serialize())
-
-
-if __name__ == "__main__":
-    main()

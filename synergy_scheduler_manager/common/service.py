@@ -50,11 +50,8 @@ class Service(SynergyObject):
     def setDescription(self, description):
         self.set("description", description)
 
-    def getStatus(self):
-        return self.get("status")
-
-    def setStatus(self, status):
-        self.set("status", status)
-
     def isEnabled(self):
-        return self.get("status") == "enabled"
+        return self.get("enabled")
+
+    def setEnabled(self, enabled=True):
+        self.set("enabled", enabled)

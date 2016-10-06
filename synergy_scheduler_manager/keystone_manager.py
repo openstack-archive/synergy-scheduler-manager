@@ -1,14 +1,20 @@
 import json
 import logging
-import os.path
 import requests
-
-from datetime import datetime
 
 try:
     from oslo_config import cfg
 except ImportError:
     from oslo.config import cfg
+
+from common.endpoint import Endpoint
+from common.project import Project
+from common.role import Role
+from common.service import Service
+from common.token import Token
+from common.trust import Trust
+from common.user import User
+
 
 from synergy.common.manager import Manager
 
@@ -32,233 +38,14 @@ See the License for the specific language governing
 permissions and limitations under the License."""
 
 
-LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
-
-
-class Trust(object):
-
-    def __init__(self, data):
-        data = data["trust"]
-
-        self.id = data["id"]
-        self.impersonations = data["impersonation"]
-        self.roles_links = data["roles_links"]
-        self.trustor_user_id = data["trustor_user_id"]
-        self.trustee_user_id = data["trustee_user_id"]
-        self.links = data["links"]
-        self.roles = data["roles"]
-        self.remaining_uses = data["remaining_uses"]
-        self.expires_at = None
-
-        if data["expires_at"] is not None:
-            self.expires_at = datetime.strptime(data["expires_at"],
-                                                "%Y-%m-%dT%H:%M:%S.%fZ")
-        self.project_id = data["project_id"]
-
-    def getId(self):
-        return self.id
-
-    def isImpersonations(self):
-        return self.impersonations
-
-    def getRolesLinks(self):
-        return self.roles_links
-
-    def getTrustorUserId(self):
-        return self.trustor_user_id
-
-    def getTrusteeUserId(self):
-        return self.trustee_user_id
-
-    def getlinks(self):
-        return self.links
-
-    def getProjectId(self):
-        return self.project_id
-
-    def getRoles(self):
-        return self.roles
-
-    def getRemainingUses(self):
-        return self.remaining_uses
-
-    def getExpiration(self):
-        return self.expires_at
-
-    def isExpired(self):
-        if self.getExpiration() is None:
-            return False
-
-        return self.getExpiration() < datetime.utcnow()
-
-
-class Token(object):
-
-    def __init__(self, token, data):
-        self.id = token
-
-        data = data["token"]
-        self.roles = data["roles"]
-        self.catalog = data["catalog"]
-        self.issued_at = datetime.strptime(data["issued_at"],
-                                           "%Y-%m-%dT%H:%M:%S.%fZ")
-        self.expires_at = datetime.strptime(data["expires_at"],
-                                            "%Y-%m-%dT%H:%M:%S.%fZ")
-        self.project = data["project"]
-        self.user = data["user"]
-        self.extras = data["extras"]
-
-    def getCatalog(self, service_name=None, interface="public"):
-        if service_name:
-            for service in self.catalog:
-                if service["name"] == service_name:
-                    for endpoint in service["endpoints"]:
-                        if endpoint["interface"] == interface:
-                            return endpoint
-            return None
-        else:
-            return self.catalog
-
-    def getExpiration(self):
-        return self.expires_at
-
-    def getId(self):
-        return self.id
-
-    def getExtras(self):
-        return self.extras
-
-    def getProject(self):
-        return self.project
-
-    def getRoles(self):
-        return self.roles
-
-    def getUser(self):
-        return self.user
-
-    def isAdmin(self):
-        if not self.roles:
-            return False
-
-        for role in self.roles:
-            if role["name"] == "admin":
-                return True
-
-        return False
-
-    def issuedAt(self):
-        return self.issued_at
-
-    def isExpired(self):
-        return self.getExpiration() < datetime.utcnow()
-
-    def save(self, filename):
-        # save to file
-        with open(filename, 'w') as f:
-            token = {}
-            token["catalog"] = self.catalog
-            token["extras"] = self.extras
-            token["user"] = self.user
-            token["project"] = self.project
-            token["roles"] = self.roles
-            token["roles"] = self.roles
-            token["issued_at"] = self.issued_at.isoformat()
-            token["expires_at"] = self.expires_at.isoformat()
-
-            data = {"id": self.id, "token": token}
-
-            json.dump(data, f)
-
-    @classmethod
-    def load(cls, filename):
-        if not os.path.isfile(".auth_token"):
-            return None
-
-        # load from file:
-        with open(filename, 'r') as f:
-            try:
-                data = json.load(f)
-                return Token(data["id"], data)
-            # if the file is empty the ValueError will be thrown
-            except ValueError as ex:
-                raise ex
-
-    def isotime(self, at=None, subsecond=False):
-        """Stringify time in ISO 8601 format."""
-        if not at:
-            at = datetime.utcnow()
-
-        if not subsecond:
-            st = at.strftime('%Y-%m-%dT%H:%M:%S')
-        else:
-            st = at.strftime('%Y-%m-%dT%H:%M:%S.%f')
-
-        if at.tzinfo:
-            tz = at.tzinfo.tzname(None)
-        else:
-            tz = 'UTC'
-
-        st += ('Z' if tz == 'UTC' else tz)
-        return st
-
-    """The trustor or grantor of a trust is the person who creates the trust.
-    The trustor is the one who contributes property to the trust.
-    The trustee is the person who manages the trust, and is usually appointed
-    by the trustor. The trustor is also often the trustee in living trusts.
-    """
-    def trust(self, trustee_user, expires_at=None,
-              project_id=None, roles=None, impersonation=True):
-        if self.isExpired():
-            raise Exception("token expired!")
-
-        headers = {"Content-Type": "application/json",
-                   "Accept": "application/json",
-                   "User-Agent": "python-novaclient",
-                   "X-Auth-Token": self.getId()}
-
-        if roles is None:
-            roles = self.getRoles()
-
-        if project_id is None:
-            project_id = self.getProject().get("id")
-
-        data = {}
-        data["trust"] = {"impersonation": impersonation,
-                         "project_id": project_id,
-                         "roles": roles,
-                         "trustee_user_id": trustee_user,
-                         "trustor_user_id": self.getUser().get("id")}
-
-        if expires_at is not None:
-            data["trust"]["expires_at"] = self.isotime(expires_at, True)
-
-        endpoint = self.getCatalog(service_name="keystone")
-
-        if not endpoint:
-            raise Exception("keystone endpoint not found!")
-
-        if "v2.0" in endpoint["url"]:
-            endpoint["url"] = endpoint["url"].replace("v2.0", "v3")
-
-        response = requests.post(url=endpoint["url"] + "/OS-TRUST/trusts",
-                                 headers=headers,
-                                 data=json.dumps(data))
-
-        if response.status_code != requests.codes.ok:
-            response.raise_for_status()
-
-        if not response.text:
-            raise Exception("trust token failed!")
-
-        return Trust(response.json())
+LOG = logging.getLogger(__name__)
 
 
 class KeystoneManager(Manager):
 
     def __init__(self):
-        super(KeystoneManager, self).__init__(name="KeystoneManager")
+        super(KeystoneManager, self).__init__("KeystoneManager")
 
         self.config_opts = [
             cfg.StrOpt("auth_url",
@@ -295,8 +82,18 @@ class KeystoneManager(Manager):
         self.timeout = CONF.KeystoneManager.timeout
         self.trust_expiration = CONF.KeystoneManager.trust_expiration
         self.token = None
+        self.auth_public_url = None
 
         self.authenticate()
+
+        service = self.getToken().getService("keystone")
+        if not service:
+            raise Exception("keystone service not found!")
+
+        endpoint = service.getEndpoint("public")
+        if not endpoint:
+            raise Exception("keystone endpoint not found!")
+        self.auth_public_url = endpoint.getURL()
 
     def task(self):
         pass
@@ -306,11 +103,9 @@ class KeystoneManager(Manager):
 
     def execute(self, command, *args, **kargs):
         if command == "GET_USERS":
-            return self.getUsers()
+            return self.getUsers(*args, **kargs)
         elif command == "GET_USER":
             return self.getProject(*args, **kargs)
-        elif command == "GET_USER_PROJECTS":
-            return self.getUserProjects(*args, **kargs)
         elif command == "GET_USER_ROLES":
             return self.getUserRoles(*args, **kargs)
         elif command == "GET_PROJECTS":
@@ -354,7 +149,7 @@ class KeystoneManager(Manager):
 
         headers = {"Content-Type": "application/json",
                    "Accept": "application/json",
-                   "User-Agent": "python-novaclient"}
+                   "User-Agent": "synergy"}
 
         identity = {"methods": ["password"],
                     "password": {"user": {"name": self.username,
@@ -383,12 +178,10 @@ class KeystoneManager(Manager):
         if not response.text:
             raise Exception("authentication failed!")
 
-        # print(response.__dict__)
-
         token_subject = response.headers["X-Subject-Token"]
         token_data = response.json()
 
-        self.token = Token(token_subject, token_data)
+        self.token = Token.parse(token_subject, token_data)
 
     def getUser(self, id):
         try:
@@ -398,36 +191,53 @@ class KeystoneManager(Manager):
             raise Exception("error on retrieving the user info (id=%r): %s"
                             % (id, response["error"]["message"]))
 
-        if response:
-            response = response["user"]
-
-        return response
-
-    def getUsers(self):
-        try:
-            response = self.getResource("users", "GET")
-        except requests.exceptions.HTTPError as ex:
-            response = ex.response.json()
-            raise Exception("error on retrieving the users list: %s"
-                            % response["error"]["message"])
+        user = None
 
         if response:
-            response = response["users"]
+            info = response["user"]
 
-        return response
+            user = User()
+            user.setId(info["id"])
+            user.setName(info["name"])
+            user.setProjectId(info["tenantId"])
+            user.setEnabled(info["enabled"])
 
-    def getUserProjects(self, id):
-        try:
-            response = self.getResource("users/%s/projects" % id, "GET")
-        except requests.exceptions.HTTPError as ex:
-            response = ex.response.json()
-            raise Exception("error on retrieving the users's projects "
-                            "(id=%r): %s" % (id, response["error"]["message"]))
+        return user
+
+    def getUsers(self, prj_id=None):
+        if prj_id:
+            try:
+                response = self.getResource("tenants/%s/users" % prj_id,
+                                            "GET",
+                                            version="v2.0")
+            except requests.exceptions.HTTPError as ex:
+                response = ex.response.json()
+                raise Exception("error on retrieving the project's users "
+                                "(id=%r): %s" % (prj_id,
+                                                 response["error"]["message"]))
+        else:
+            try:
+                response = self.getResource("/users", "GET")
+            except requests.exceptions.HTTPError as ex:
+                response = ex.response.json()
+                raise Exception("error on retrieving the users list: %s"
+                                % response["error"]["message"])
+
+        users = []
 
         if response:
-            response = response["projects"]
+            user_info = response["users"]
 
-        return response
+            for info in user_info:
+                user = User()
+                user.setId(info["id"])
+                user.setName(info["name"])
+                user.setProjectId(info["tenantId"])
+                user.setEnabled(info["enabled"])
+
+                users.append(user)
+
+        return users
 
     def getUserRoles(self, user_id, project_id):
         try:
@@ -439,11 +249,19 @@ class KeystoneManager(Manager):
                             "prjId=%r): %s" % (user_id,
                                                project_id,
                                                response["error"]["message"]))
+        roles = []
 
         if response:
-            response = response["roles"]
+            roles_info = response["roles"]
 
-        return response
+            for info in roles_info:
+                role = Role()
+                role.setId(info["id"])
+                role.setName(info["name"])
+
+                roles.append(role)
+
+        return roles
 
     def getProject(self, id):
         try:
@@ -454,23 +272,50 @@ class KeystoneManager(Manager):
                 "error on retrieving the project (id=%r, msg=%s)." %
                 (id, response["error"]["message"]))
 
-        if response:
-            response = response["project"]
-
-        return response
-
-    def getProjects(self):
-        try:
-            response = self.getResource("/projects", "GET")
-        except requests.exceptions.HTTPError as ex:
-            response = ex.response.json()
-            raise Exception("error on retrieving the projects list: %s"
-                            % response["error"]["message"])
+        project = None
 
         if response:
-            response = response["projects"]
+            info = response["project"]
 
-        return response
+            project = Project()
+            project.setId(info["id"])
+            project.setName(info["name"])
+            project.setEnabled(info["enabled"])
+
+        return project
+
+    def getProjects(self, usr_id=None):
+        if usr_id:
+            try:
+                response = self.getResource(
+                    "users/%s/projects" % usr_id, "GET")
+            except requests.exceptions.HTTPError as ex:
+                response = ex.response.json()
+                raise Exception("error on retrieving the users's projects (id="
+                                "%r): %s" % (usr_id,
+                                             response["error"]["message"]))
+        else:
+            try:
+                response = self.getResource("/projects", "GET")
+            except requests.exceptions.HTTPError as ex:
+                response = ex.response.json()
+                raise Exception("error on retrieving the projects list: %s"
+                                % response["error"]["message"])
+
+        projects = []
+
+        if response:
+            projects_info = response["projects"]
+
+            for info in projects_info:
+                project = Project()
+                project.setId(info["id"])
+                project.setName(info["name"])
+                project.setEnabled(info["enabled"])
+
+                projects.append(project)
+
+        return projects
 
     def getRole(self, id):
         try:
@@ -480,10 +325,15 @@ class KeystoneManager(Manager):
             raise Exception("error on retrieving the role info (id=%r): %s"
                             % (id, response["error"]["message"]))
 
-        if response:
-            response = response["role"]
+        role = None
 
-        return response
+        if response:
+            info = response["role"]
+            role = Role()
+            role.setId(info["id"])
+            role.setName(info["name"])
+
+        return role
 
     def getRoles(self):
         try:
@@ -493,10 +343,108 @@ class KeystoneManager(Manager):
             raise Exception("error on retrieving the roles list: %s"
                             % response["error"]["message"])
 
-        if response:
-            response = response["roles"]
+        roles = []
 
-        return response
+        if response:
+            roles = response["roles"]
+
+            for info in roles:
+                role = Role()
+                role.setId(info["id"])
+                role.setName(info["name"])
+
+                roles.append(role)
+
+        return roles
+
+    def makeTrust(self, trustee_user_id, token=None,
+                  expires_at=None, impersonation=True):
+        project_id = token.getProject().getId()
+        roles = token.getRoles()
+        roles_data = []
+
+        for role in roles:
+            roles_data.append({"id": role.getId(), "name": role.getName()})
+
+        data = {}
+        data["trust"] = {"impersonation": impersonation,
+                         "project_id": project_id,
+                         "roles": roles_data,
+                         "trustee_user_id": trustee_user_id,
+                         "trustor_user_id": token.getUser().getId()}
+
+        if expires_at is not None:
+            data["trust"]["expires_at"] = token.isotime(expires_at, True)
+
+        try:
+            response = self.getResource("/OS-TRUST/trusts",
+                                        "POST", data=data, token=token)
+        except requests.exceptions.HTTPError as ex:
+            response = ex.response.json()
+            raise Exception("error on retrieving the trust info (id=%r): %s"
+                            % (id, response["error"]["message"]))
+
+        trust = Trust(response["trust"])
+        trust.keystone_url = self.auth_public_url
+
+        return trust
+
+    def getTrust(self, id):
+        try:
+            response = self.getResource("/OS-TRUST/trusts/%s" % id, "GET")
+        except requests.exceptions.HTTPError as ex:
+            response = ex.response.json()
+            raise Exception("error on retrieving the trust info (id=%r): %s"
+                            % (id, response["error"]["message"]))
+
+        trust = None
+
+        if response:
+            trust = Trust(response["trust"])
+            trust.keystone_url = self.auth_public_url
+
+        return trust
+
+    def deleteTrust(self, id, token=None):
+        if not token:
+            token = self.getToken()
+
+        if token.isExpired():
+            raise Exception("token expired!")
+
+        try:
+            self.getResource("/OS-TRUST/trusts/%s" % id, "DELETE", token=token)
+        except requests.exceptions.HTTPError as ex:
+            response = ex.response.json()
+            raise Exception("error on deleting the trust (id=%r): %s"
+                            % (id, response["error"]["message"]))
+
+    def getTrusts(self, user_id=None, isTrustor=True, token=None):
+        url = "/OS-TRUST/trusts"
+
+        if user_id:
+            if isTrustor:
+                url += "?trustor_user_id=%s" % user_id
+            else:
+                url += "?trustee_user_id=%s" % user_id
+
+        try:
+            response = self.getResource(url, "GET", token=token)
+        except requests.exceptions.HTTPError as ex:
+            response = ex.response.json()
+            raise Exception("error on retrieving the trust list (id=%r): %s"
+                            % (id, response["error"]["message"]))
+
+        trusts = []
+
+        if response:
+            for data in response["trusts"]:
+                trust = Trust(data)
+                trust.keystone_url = self.auth_public_url
+
+                trusts.append(trust)
+
+        return trusts
 
     def getToken(self):
         self.authenticate()
@@ -508,8 +456,8 @@ class KeystoneManager(Manager):
 
         headers = {"Content-Type": "application/json",
                    "Accept": "application/json",
-                   "User-Agent": "python-novaclient",
-                   "X-Auth-Project-Id": self.token.getProject()["name"],
+                   "User-Agent": "synergy",
+                   "X-Auth-Project-Id": self.token.getProject().getName(),
                    "X-Auth-Token": self.token.getId(),
                    "X-Subject-Token": id}
 
@@ -527,8 +475,8 @@ class KeystoneManager(Manager):
 
         headers = {"Content-Type": "application/json",
                    "Accept": "application/json",
-                   "User-Agent": "python-novaclient",
-                   "X-Auth-Project-Id": self.token.getProject()["name"],
+                   "User-Agent": "synergy",
+                   "X-Auth-Project-Id": self.token.getProject().getName(),
                    "X-Auth-Token": self.token.getId(),
                    "X-Subject-Token": id}
 
@@ -545,7 +493,7 @@ class KeystoneManager(Manager):
         token_subject = response.headers["X-Subject-Token"]
         token_data = response.json()
 
-        return Token(token_subject, token_data)
+        return Token.parse(token_subject, token_data)
 
     def getEndpoint(self, id=None, service_id=None):
         if id:
@@ -556,9 +504,19 @@ class KeystoneManager(Manager):
                 raise Exception("error on retrieving the endpoint (id=%r): %s"
                                 % (id, response["error"]["message"]))
             if response:
-                response = response["endpoint"]
+                info = response["endpoint"]
 
-            return response
+                endpoint = Endpoint()
+                endpoint.setId(info["id"])
+                endpoint.setName(info["name"])
+                endpoint.setInterface(info["interface"])
+                endpoint.setRegion(info["region"])
+                endpoint.setRegionId(info["region_id"])
+                endpoint.setServiceId(info["service_id"])
+                endpoint.setURL(info["url"])
+                endpoint.setEnabled(info["enabled"])
+
+                return endpoint
         elif service_id:
             try:
                 endpoints = self.getEndpoints()
@@ -570,7 +528,7 @@ class KeystoneManager(Manager):
 
             if endpoints:
                 for endpoint in endpoints:
-                    if endpoint["service_id"] == service_id:
+                    if endpoint.getServiceId() == service_id:
                         return endpoint
 
         return None
@@ -583,10 +541,25 @@ class KeystoneManager(Manager):
             raise Exception("error on retrieving the endpoints list: %s"
                             % response["error"]["message"])
 
-        if response:
-            response = response["endpoints"]
+        endpoints = []
 
-        return response
+        if response:
+            endpoints_info = response["endpoints"]
+
+            for info in endpoints_info:
+                endpoint = Endpoint()
+                endpoint.setId(info["id"])
+                endpoint.setName(info["name"])
+                endpoint.setInterface(info["interface"])
+                endpoint.setRegion(info["region"])
+                endpoint.setRegionId(info["region_id"])
+                endpoint.setServiceId(info["service_id"])
+                endpoint.setURL(info["url"])
+                endpoint.setEnabled(info["enabled"])
+
+                endpoints.append(endpoint)
+
+        return endpoints
 
     def getService(self, id=None, name=None):
         if id:
@@ -598,14 +571,32 @@ class KeystoneManager(Manager):
                                 ": %s" % (id, response["error"]["message"]))
 
             if response:
-                response = response["service"]
-            return response
+                info = response["service"]
+
+                service = Service()
+                service.setId(info["id"])
+                service.setName(info["name"])
+                service.setType(info["type"])
+                service.setDescription(info["description"])
+                service.setEnabled(info["enabled"])
+
+                for endpoint_info in info.get("endpoints", []):
+                    endpoint = Endpoint()
+                    endpoint.setId(endpoint_info["id"])
+                    endpoint.setInterface(endpoint_info["interface"])
+                    endpoint.setRegion(endpoint_info["region"])
+                    endpoint.setRegionId(endpoint_info["region_id"])
+                    endpoint.setURL(endpoint_info["url"])
+
+                    service.getEndpoints().append(endpoint)
+
+                return service
         elif name:
             services = self.getServices()
 
             if services:
                 for service in services:
-                    if service["name"] == name:
+                    if service.getName() == name:
                         return service
 
         return None
@@ -618,21 +609,55 @@ class KeystoneManager(Manager):
             raise Exception("error on retrieving the services list: %s"
                             % response["error"]["message"])
 
+        services = []
+
         if response:
-            response = response["services"]
+            services_info = response["services"]
 
-        return response
+            for info in services_info:
+                service = Service()
+                service.setId(info["id"])
+                service.setName(info["name"])
+                service.setType(info["type"])
+                service.setDescription(info["description"])
+                service.setEnabled(info["enabled"])
 
-    def getResource(self, resource, method, data=None):
-        self.authenticate()
+                for endpoint_info in service.get("endpoints"):
+                    endpoint = Endpoint()
+                    endpoint.setId(endpoint_info["id"])
+                    endpoint.setInterface(endpoint_info["interface"])
+                    endpoint.setRegion(endpoint_info["region"])
+                    endpoint.setRegionId(endpoint_info["region_id"])
+                    endpoint.setURL(endpoint_info["url"])
 
-        url = self.auth_url + "/" + resource
+                    service.getEndpoints().append(endpoint)
+
+                services.append(service)
+
+        return services
+
+    def getResource(
+            self, resource, method, version=None, data=None, token=None):
+        if token:
+            if token.isExpired():
+                raise Exception("token expired!")
+
+            url = self.auth_public_url
+        else:
+            self.authenticate()
+            token = self.getToken()
+            url = self.auth_url
+
+        if version:
+            url = url[:url.rfind("/") + 1] + version
+
+        url = url + "/" + resource
 
         headers = {"Content-Type": "application/json",
                    "Accept": "application/json",
-                   "User-Agent": "python-novaclient",
-                   "X-Auth-Project-Id": self.token.getProject()["name"],
-                   "X-Auth-Token": self.token.getId()}
+                   "User-Agent": "synergy",
+                   "X-Auth-Project-Id": token.getProject().getName(),
+                   "X-Auth-Token": token.getId()}
 
         if method == "GET":
             response = requests.get(url,

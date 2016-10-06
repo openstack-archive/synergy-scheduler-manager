@@ -1,6 +1,7 @@
 ﻿import logging
 import threading
 
+from common.user import User
 from datetime import datetime
 from datetime import timedelta
 
@@ -37,16 +38,17 @@ LOG = logging.getLogger(__name__)
 class FairShareManager(Manager):
 
     def __init__(self):
-        super(FairShareManager, self).__init__(name="FairShareManager")
+        super(FairShareManager, self).__init__("FairShareManager")
 
         self.config_opts = [
             cfg.IntOpt('periods', default=3),
             cfg.IntOpt('period_length', default=7),
             cfg.FloatOpt('default_share', default=10.0),
-            cfg.FloatOpt('decay_weight', default=0.5, help="the decay weight"),
-            cfg.IntOpt('age_weight', default=1000, help="the age weight"),
-            cfg.IntOpt('vcpus_weight', default=10000, help="the vcpus weight"),
-            cfg.IntOpt('memory_weight', default=7000, help="the memory weight")
+            cfg.FloatOpt('decay_weight', default=0.5, 
+                         help="the decay weight (float value [0,1])"),
+            cfg.IntOpt('age_weight', default=10, help="the age weight"),
+            cfg.IntOpt('vcpus_weight', default=100, help="the vcpus weight"),
+            cfg.IntOpt('memory_weight', default=70, help="the memory weight")
         ]
 
     def setup(self):
@@ -77,6 +79,11 @@ class FairShareManager(Manager):
         self.quota_manager = self.getManager("QuotaManager")
         self.keystone_manager = self.getManager("KeystoneManager")
         self.condition = threading.Condition()
+
+        if self.decay_weight < 0:
+            self.decay_weight = float(0)
+        elif self.decay_weight > 1:
+            self.decay_weight = float(1)
 
     def execute(self, command, *args, **kargs):
         if command == "ADD_PROJECT":
@@ -122,16 +129,14 @@ class FairShareManager(Manager):
         if prj_id not in self.projects:
             raise Exception("project=%s not found!" % prj_id)
 
-        if user_id not in self.projects[prj_id]["users"]:
+        user = self.projects[prj_id].getUser(id=user_id)
+        if not user:
             raise Exception("user=%s not found!" % user_id)
 
-        fair_share_cores = 0
-        fair_share_ram = 0
-
         with self.condition:
-            user = self.projects[prj_id]["users"].get(user_id)
-            fair_share_cores = user["fairshare_cores"]
-            fair_share_ram = user["fairshare_ram"]
+            priority = user.getPriority()
+            fairshare_vcpus = priority.getFairShare("vcpus")
+            fairshare_memory = priority.getFairShare("memory")
 
             self.condition.notifyAll()
 
@@ -143,31 +148,27 @@ class FairShareManager(Manager):
         diff = (now - timestamp)
         minutes = diff.seconds / 60
         priority = (float(self.age_weight) * minutes +
-                    float(self.vcpus_weight) * fair_share_cores +
-                    float(self.memory_weight) * fair_share_ram -
+                    float(self.vcpus_weight) * fairshare_vcpus +
+                    float(self.memory_weight) * fairshare_memory -
                     float(self.age_weight) * retry)
 
         return int(priority)
 
-    def addProject(self, prj_id, prj_name, share=float(0)):
-        if prj_id not in self.projects:
-            if share == 0:
-                share = self.default_share
+    def addProject(self, project):
+        if self.projects.get(project.getId(), None):
+            raise Exception("project %r already exists!" % (project.getId()))
 
-            with self.condition:
-                self.projects[prj_id] = {"id": prj_id,
-                                         "name": prj_name,
-                                         "type": "dynamic",
-                                         "users": {},
-                                         "usage": {},
-                                         "share": share}
-                self.condition.notifyAll()
+        prj_share = project.getShare()
+        if prj_share.getValue() == 0:
+            prj_share.setValue(self.default_share)
+
+        self.projects[project.getId()] = project
 
     def getProject(self, prj_id):
         if prj_id not in self.projects:
             raise Exception("project name=%r not found!" % prj_id)
 
-        return self.projects.get(prj_id)
+        return self.projects.get(prj_id, None)
 
     def getProjects(self):
         return self.projects
@@ -183,187 +184,165 @@ class FairShareManager(Manager):
             return
 
         total_prj_share = float(0)
-        total_usage_ram = float(0)
-        total_usage_cores = float(0)
-        total_actual_usage_cores = float(0)
-        total_actual_usage_ram = float(0)
-
-        users = self.keystone_manager.execute("GET_USERS")
-
-        if not users:
-            LOG.error("cannot retrieve the users list from KeystoneManager")
-            return
-
-        for user in users:
-            user_id = str(user["id"])
-            user_name = str(user["name"])
-            user_projects = self.keystone_manager.execute("GET_USER_PROJECTS",
-                                                          id=user_id)
-
-            for project in user_projects:
-                prj_id = str(project["id"])
-
-                if prj_id not in self.projects:
-                    continue
-
-                p_users = self.projects[prj_id]["users"]
-
-                if user_id not in p_users:
-                    p_users[user_id] = {"name": user_name,
-                                        "share": self.default_share,
-                                        "usage": {"ram": float(0),
-                                                  "cores": float(0)}}
-                else:
-                    p_users[user_id]["usage"]["ram"] = float(0)
-                    p_users[user_id]["usage"]["cores"] = float(0)
+        total_memory = float(0)
+        total_vcpus = float(0)
 
         to_date = datetime.utcnow()
 
-        for x in xrange(self.periods):
+        time_window_from_date = to_date
+        time_window_to_date = to_date
+
+        for prj_id, project in self.projects.items():
+            for user in project.getUsers():
+                data = user.getData()
+                data["vcpus"] = float(0)
+                data["memory"] = float(0)
+
+        for period in xrange(self.periods):
             default_share = self.default_share
-            decay = self.decay_weight ** x
+            decay = self.decay_weight ** period
             from_date = to_date - timedelta(days=(self.period_length))
+            time_window_from_date = from_date
 
-            usages = self.nova_manager.execute("GET_RESOURCE_USAGE",
-                                               prj_ids=self.projects.keys(),
-                                               from_date=from_date,
-                                               to_date=to_date)
+            for prj_id, project in self.projects.items():
+                usages = self.nova_manager.getProjectUsage(
+                    prj_id, from_date, to_date)
 
-            for prj_id, users in usages.items():
-                project = self.projects[prj_id]
+                for user_id, usage_rec in usages.items():
+                    user = project.getUser(id=user_id)
 
-                for user_id, usage_record in users.items():
-                    if user_id not in project["users"]:
-                        project["users"][user_id] = {"name": user_name,
-                                                     "share": default_share,
-                                                     "usage": {}}
+                    if not user:
+                        user = User()
+                        user.setId(user_id)
+                        user.getShare().setValue(default_share)
 
-                    user_usage = project["users"][user_id]["usage"]
-                    user_usage["ram"] += decay * usage_record["ram"]
-                    user_usage["cores"] += decay * usage_record["cores"]
+                        data = user.getData()
+                        data["vcpus"] = float(0)
+                        data["memory"] = float(0)
 
-                    total_usage_ram += user_usage["ram"]
-                    total_usage_cores += user_usage["cores"]
+                        project.addUser(user)
+
+                    decay_vcpus = decay * usage_rec["vcpus"]
+                    decay_memory = decay * usage_rec["memory"]
+
+                    data = user.getData()
+                    data["vcpus"] += decay_vcpus
+                    data["memory"] += decay_memory
+
+                    total_vcpus += decay_vcpus
+                    total_memory += decay_memory
 
             to_date = from_date
 
         for project in self.projects.values():
-            if "share" not in project or project["share"] == 0:
-                project["share"] = self.default_share
+            prj_share = project.getShare()
+
+            if prj_share.getValue() == 0:
+                prj_share.setValue(self.default_share)
 
             # check the share for each user and update the usage_record
-            users = project["users"]
-            prj_id = project["id"]
-            prj_share = project["share"]
             sibling_share = float(0)
 
-            for user_id, user in users.items():
-                if "share" not in user or user["share"] == 0:
-                    user["share"] = self.default_share
+            for user in project.getUsers():
+                user_share = user.getShare()
 
-                if len(users) == 1:
-                    user["share"] = prj_share
-                    sibling_share = prj_share
+                if user_share.getValue() == 0:
+                    user_share.setValue(self.default_share)
+
+                if len(project.getUsers()) == 1:
+                    user_share.setValue(prj_share.getValue())
+                    sibling_share = prj_share.getValue()
                 else:
-                    sibling_share += user["share"]
+                    sibling_share += user_share.getValue()
 
-            project["sibling_share"] = sibling_share
-            total_prj_share += prj_share
+            for user in project.getUsers():
+                user_share = user.getShare()
+                user_share.setSiblingValue(sibling_share)
+
+            total_prj_share += prj_share.getValue()
 
         for prj_id, project in self.projects.items():
-            sibling_share = project["sibling_share"]
-            prj_share = project["share"]
-            actual_usage_cores = float(0)
-            actual_usage_ram = float(0)
+            prj_data = project.getData()
+            prj_data["actual_memory"] = float(0)
+            prj_data["actual_vcpus"] = float(0)
+            prj_data["effective_memory"] = float(0)
+            prj_data["effective_vcpus"] = float(0)
+            prj_data["time_window_from_date"] = time_window_from_date
+            prj_data["time_window_to_date"] = time_window_to_date
 
-            users = project["users"]
+            prj_share = project.getShare()
+            prj_share.setSiblingValue(total_prj_share)
+            prj_share.setNormalizedValue(
+                prj_share.getValue() / prj_share.getSiblingValue())
 
-            for user_id, user in users.items():
+            for user in project.getUsers():
                 # for each user the normalized share
                 # is calculated (0 <= user_norm_share <= 1)
-                user_share = user["share"]
-                user_usage = user["usage"]
-                user_usage["norm_ram"] = user_usage["ram"]
-                user_usage["norm_cores"] = user_usage["cores"]
+                usr_share = user.getShare()
+                usr_share.setNormalizedValue(
+                    usr_share.getValue() / usr_share.getSiblingValue() *
+                    prj_share.getNormalizedValue())
 
-                if prj_share > 0 and sibling_share > 0 and total_prj_share > 0:
-                    user["norm_share"] = (user_share / sibling_share) * \
-                                         (prj_share / total_prj_share)
-                    project["norm_share"] = prj_share / total_prj_share
-                else:
-                    user["norm_share"] = user_share
-                    project["norm_share"] = prj_share
+                usr_data = user.getData()
+                usr_data["actual_memory"] = usr_data["memory"]
+                usr_data["actual_vcpus"] = usr_data["vcpus"]
+                usr_data["time_window_from_date"] = time_window_from_date
+                usr_data["time_window_to_date"] = time_window_to_date
 
-                if total_usage_ram > 0:
-                    user_usage["norm_ram"] /= total_usage_ram
+                if total_memory > 0:
+                    usr_data["actual_memory"] /= total_memory
 
-                if total_usage_cores > 0:
-                    user_usage["norm_cores"] /= total_usage_cores
+                if total_vcpus > 0:
+                    usr_data["actual_vcpus"] /= total_vcpus
 
-                actual_usage_ram += user_usage["norm_ram"]
-                actual_usage_cores += user_usage["norm_cores"]
-
-            project["usage"]["actual_ram"] = actual_usage_ram
-            project["usage"]["actual_cores"] = actual_usage_cores
-
-            total_actual_usage_ram += actual_usage_ram
-            total_actual_usage_cores += actual_usage_cores
+                prj_data["actual_memory"] += usr_data["actual_memory"]
+                prj_data["actual_vcpus"] += usr_data["actual_vcpus"]
 
         for project in self.projects.values():
-            actual_usage_ram = project["usage"]["actual_ram"]
-            actual_usage_cores = project["usage"]["actual_cores"]
-            prj_share = project["share"]
-            sibling_share = project["sibling_share"]
-            users = project["users"]
+            prj_data = project.getData()
+            prj_data["effective_memory"] = prj_data["actual_memory"]
+            prj_data["effective_vcpus"] = prj_data["actual_vcpus"]
 
-            effect_prj_ram_usage = actual_usage_ram
-            effect_prj_cores_usage = actual_usage_cores
+            for user in project.getUsers():
+                usr_priority = user.getPriority()
+                usr_share = user.getShare()
+                share = usr_share.getValue()
+                sibling_share = usr_share.getSiblingValue()
+                norm_share = usr_share.getNormalizedValue()
+                usr_data = user.getData()
+                usr_data["effective_vcpus"] = float(0)
+                usr_data["effective_memory"] = float(0)
+                usr_data["actual_rel_vcpus"] = float(0)
+                usr_data["actual_rel_memory"] = float(0)
 
-            project["usage"]["effective_ram"] = effect_prj_ram_usage
-            project["usage"]["effective_cores"] = effect_prj_cores_usage
+                if prj_data["actual_vcpus"] > 0:
+                    usr_data["actual_rel_vcpus"] = usr_data["actual_vcpus"]
+                    usr_data["actual_rel_vcpus"] /= prj_data["actual_vcpus"]
 
-            for user in users.values():
-                user["fairshare_ram"] = float(0)
-                user["fairshare_cores"] = float(0)
-                user_share = user["share"]
-                user_usage = user["usage"]
-                user_usage["effective_cores"] = float(0)
-                user_usage["effective_ram"] = float(0)
+                if prj_data["actual_memory"] > 0:
+                    usr_data["actual_rel_memory"] = usr_data["actual_memory"]
+                    usr_data["actual_rel_memory"] /= prj_data["actual_memory"]
 
-                if user_share > 0:
-                    norm_share = user["norm_share"]
-                    norm_usage_ram = user_usage["norm_ram"]
-                    norm_usage_cores = user_usage["norm_cores"]
+                effective_memory = (usr_data["actual_memory"] + (
+                                    (prj_data["effective_memory"] -
+                                     usr_data["actual_memory"]) *
+                                    share / sibling_share))
 
-                    effect_usage_ram = (norm_usage_ram + (
-                                        (effect_prj_cores_usage -
-                                         norm_usage_ram) *
-                                        user_share / sibling_share))
+                effective_vcpus = (usr_data["actual_vcpus"] + (
+                                   (prj_data["effective_vcpus"] -
+                                    usr_data["actual_vcpus"]) *
+                                   share / sibling_share))
 
-                    effect_usage_cores = (norm_usage_cores + (
-                                          (effect_prj_cores_usage -
-                                           norm_usage_cores) *
-                                          user_share / sibling_share))
+                usr_data["effective_memory"] = effective_memory
+                usr_data["effective_cores"] = effective_vcpus
 
-                    user_usage["effective_ram"] = effect_usage_ram
-                    user_usage["effective_rel_ram"] = float(0)
+                f_memory = 2 ** (-effective_memory / norm_share)
+                usr_priority.setFairShare("memory", f_memory)
 
-                    user_usage["effective_cores"] = effect_usage_cores
-                    user_usage["effective_rel_cores"] = float(0)
+                f_vcpus = 2 ** (-effective_vcpus / norm_share)
+                usr_priority.setFairShare("vcpus", f_vcpus)
 
-                    if actual_usage_cores > 0:
-                        user_usage["effective_rel_cores"] = norm_usage_cores
-                        user_usage["effective_rel_cores"] /= actual_usage_cores
+                usr_priority.setValue(float(self.vcpus_weight) * f_vcpus +
+                                      float(self.memory_weight) * f_memory)
 
-                    if actual_usage_ram > 0:
-                        user_usage["effective_rel_ram"] = norm_usage_ram
-                        user_usage["effective_rel_ram"] /= actual_usage_ram
-
-                    if norm_share > 0:
-                        f_ram = 2 ** (-effect_usage_ram / norm_share)
-                        user["fairshare_ram"] = f_ram
-
-                        f_cores = 2 ** (-effect_usage_cores / norm_share)
-                        user["fairshare_cores"] = f_cores
-
-            LOG.debug("fairshare project %s" % project)
+            LOG.debug("fairshare project %s" % project.serialize())

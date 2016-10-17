@@ -1,0 +1,38 @@
+CHANGES
+=======
+
+* fix connection URL to RabbitMQ
+* Added Queue class to synergy_scheduler_manager/common/queue.py
+* Common objects and relative test units added
+* Destroy() method fixed
+* Fix requirement version pinning
+* Use dependency pinning
+* fix OpenStack CentOS repo for docker packaging
+* Cleanup tox.ini: Remove obsolete constraints
+* Add python-nova as a dependency
+
+1.0.1
+-----
+
+* Bump to v1.0.1
+* Fix broken link to doc in README
+
+1.0.0
+-----
+
+* bump to version 1.0.0
+* getExpiredServers() fixed
+* add more unit tests to managers
+* Dynamic quota initialization fixed!
+* changed default value of ram_allocation_ration
+* update library required versions
+* SchedulerManager initialization fixed
+* mark requests lib as dependency in RPM spec file
+* broaden package versions in requirements
+* scheduler_maanger.py: restored the signatures of Notificatio.info() Notificatio.warn() and Notificatio.error() fairshare_manager.py: fixed calculateFairShare() client: added new shell commands
+* add docker packaging for CentOS 7 & Ubuntu 14.04
+* bump to vesion 0.2
+* various clean & fix w/ changes in functionalities
+* add deb & rpm files for packaging
+* import project from launchpad
+* Added .gitreview

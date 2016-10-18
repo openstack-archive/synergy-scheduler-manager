@@ -1,5 +1,7 @@
 FROM ubuntu:14.04
 MAINTAINER Vincent Llorens <vincent.llorens@cc.in2p3.fr>
+RUN apt-get update && apt-get install -y software-properties-common
+RUN add-apt-repository cloud-archive:liberty
 RUN apt-get update \
     && apt-get install -y build-essential \
                           debhelper \

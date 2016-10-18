@@ -6,8 +6,8 @@ PKG_DIR=/tmp/python-synergy-scheduler-manager
 
 
 function get_version() {
-    local file=$PKG_DIR/setup.cfg
-    export PKG_VERSION=$(grep -e "version = " $file | sed -r "s/version = ()/\1/")
+    cd $PKG_DIR
+    export PKG_VERSION=$(git tag -l "*.*.*" | sort -V | tail -1)
 }
 
 function setup() {

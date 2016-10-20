@@ -19,7 +19,7 @@ Requires:      python-oslo-versionedobjects >= 0.10
 Requires:      python-pbr >= 1.8
 Requires:      python-requests >= 2.10
 Requires:      python-sqlalchemy >= 1.0
-Requires:      python-synergy-service >= 1.0.1
+Requires:      python-synergy-service >= 1.1
 
 
 %description

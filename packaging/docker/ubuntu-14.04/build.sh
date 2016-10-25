@@ -7,7 +7,7 @@ PKG_DIR=/tmp/python-synergy-scheduler-manager
 function copy_source() {
     cd /home/pkger
     cp -r $PKG_DIR python-synergy-scheduler-manager
-    rm -r python-synergy-scheduler-manager/{.tox,.testrepository,build,dist} || true
+    rm -r python-synergy-scheduler-manager/{.eggs,.tox,.testrepository,build,dist} || true
 }
 
 function get_version() {

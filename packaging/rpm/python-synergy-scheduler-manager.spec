@@ -12,13 +12,13 @@ BuildArch:     noarch
 BuildRequires: python-devel
 BuildRequires: python-setuptools
 Requires:      python-nova >= 12.0
-Requires:      python-oslo-config >= 2.4
-Requires:      python-oslo-messaging >= 2.5
-Requires:      python-oslo-serialization >= 1.9
-Requires:      python-oslo-versionedobjects >= 0.10
-Requires:      python-pbr >= 1.8
-Requires:      python-requests >= 2.10
-Requires:      python-sqlalchemy >= 1.0
+Requires:      python-oslo-config
+Requires:      python-oslo-messaging
+Requires:      python-oslo-serialization
+Requires:      python-oslo-versionedobjects
+Requires:      python-pbr
+Requires:      python-requests
+Requires:      python-sqlalchemy
 Requires:      python-synergy-service >= 1.1
 
 

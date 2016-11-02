@@ -217,17 +217,9 @@ class QuotaManager(Manager):
         shared_vcpus = float(0)
 
         try:
-            cpu_ratio = self.nova_manager.getParameter(
-                "cpu_allocation_ratio", "NovaManager")
+            cpu_ratio = self.nova_manager.getParameter("cpu_allocation_ratio")
 
-            ram_ratio = self.nova_manager.getParameter(
-                "ram_allocation_ratio", "NovaManager")
-
-            cpu_ratio = self.nova_manager.getParameter(
-                "cpu_allocation_ratio", default=cpu_ratio)
-
-            ram_ratio = self.nova_manager.getParameter(
-                "ram_allocation_ratio", default=ram_ratio)
+            ram_ratio = self.nova_manager.getParameter("ram_allocation_ratio")
 
             hypervisors = self.nova_manager.getHypervisors()
 

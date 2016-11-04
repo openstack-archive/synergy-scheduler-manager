@@ -125,7 +125,7 @@ class QuotaCommand(ExecuteCommand):
                                                            vcpus_size,
                                                            memory_usage,
                                                            memory_size,
-                                                           norm_share,
+                                                           norm_share * 100,
                                                            project.getTTL())
 
             row.append(private)

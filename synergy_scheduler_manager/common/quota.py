@@ -540,9 +540,17 @@ class SharedQuota(SynergyObject):
 
         cls.resources = entity["resources"]
         cls.enabled = entity["enabled"]
-        cls.lastAllocationTime = datetime.strptime(
-            entity["lastAllocationTime"], "%Y-%m-%dT%H:%M:%S.%f")
-        cls.lastReleaseTime = datetime.strptime(
-            entity["lastReleaseTime"], "%Y-%m-%dT%H:%M:%S.%f")
+
+        if isinstance(entity["lastAllocationTime"], datetime):
+            cls.lastAllocationTime = entity["lastAllocationTime"]
+        else:
+            cls.lastAllocationTime = datetime.strptime(
+                entity["lastAllocationTime"], "%Y-%m-%dT%H:%M:%S.%f")
+
+        if isinstance(entity["lastReleaseTime"], datetime):
+            cls.lastReleaseTime = entity["lastReleaseTime"]
+        else:
+            cls.lastReleaseTime = datetime.strptime(
+                entity["lastReleaseTime"], "%Y-%m-%dT%H:%M:%S.%f")
 
         return quota

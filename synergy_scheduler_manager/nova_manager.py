@@ -5,7 +5,6 @@ import hashlib
 import hmac
 import json
 import logging
-import os.path
 import requests
 
 from common.block_device import BlockDeviceMapping
@@ -357,14 +356,10 @@ class NovaManager(Manager):
         super(NovaManager, self).__init__("NovaManager")
 
         self.config_opts = [
-            cfg.StrOpt("nova_conf",
-                       help="the nova.conf path",
-                       default=None,
-                       required=False),
             cfg.StrOpt("amqp_backend",
                        help="the amqp backend tpye (e.g. rabbit, qpid)",
                        default=None,
-                       required=False),
+                       required=True),
             cfg.StrOpt("amqp_host",
                        help="the amqp host name",
                        default="localhost",
@@ -376,11 +371,11 @@ class NovaManager(Manager):
             cfg.StrOpt("amqp_user",
                        help="the amqp user",
                        default=None,
-                       required=False),
+                       required=True),
             cfg.StrOpt("amqp_password",
                        help="the amqp password",
                        default=None,
-                       required=False),
+                       required=True),
             cfg.StrOpt("amqp_virt_host",
                        help="the amqp virtual host",
                        default="/",
@@ -397,16 +392,22 @@ class NovaManager(Manager):
                        help="the scheduler topic",
                        default="scheduler",
                        required=False),
+            cfg.StrOpt("metadata_proxy_shared_secret",
+                       help="the metadata proxy shared secret",
+                       default=None,
+                       required=True),
             cfg.FloatOpt("cpu_allocation_ratio",
                          help="the cpu allocation ratio",
-                         default=float(16)),
+                         default=float(16),
+                         required=False),
             cfg.FloatOpt("ram_allocation_ratio",
                          help="the ram allocation ratio",
-                         default=float(1.5)),
+                         default=float(1.5),
+                         required=False),
             cfg.StrOpt("db_connection",
                        help="the NOVA database connection",
                        default=None,
-                       required=False),
+                       required=True),
             cfg.StrOpt("host",
                        help="the host name",
                        default="localhost",
@@ -431,119 +432,27 @@ class NovaManager(Manager):
         self.keystone_manager = self.getManager("KeystoneManager")
         self.scheduler_manager = self.getManager("SchedulerManager")
 
-        amqp_backend = self.getParameter("amqp_backend", "NovaManager")
+        amqp_backend = self.getParameter("amqp_backend", fallback=True)
 
-        amqp_host = self.getParameter("amqp_host", "NovaManager")
+        amqp_host = self.getParameter("amqp_host")
 
-        amqp_port = self.getParameter("amqp_port", "NovaManager")
+        amqp_port = self.getParameter("amqp_port")
 
-        amqp_user = self.getParameter("amqp_user", "NovaManager")
+        amqp_user = self.getParameter("amqp_user", fallback=True)
 
-        amqp_password = self.getParameter("amqp_password", "NovaManager")
+        amqp_password = self.getParameter("amqp_password", fallback=True)
 
-        amqp_virt_host = self.getParameter("amqp_virt_host", "NovaManager")
+        amqp_virt_host = self.getParameter("amqp_virt_host")
 
-        db_connection = self.getParameter("db_connection", "NovaManager")
+        db_connection = self.getParameter("db_connection", fallback=True)
 
-        host = self.getParameter("host", "NovaManager")
+        host = self.getParameter("host")
 
-        conductor_topic = self.getParameter("conductor_topic", "NovaManager")
+        conductor_topic = self.getParameter("conductor_topic")
 
-        compute_topic = self.getParameter("compute_topic", "NovaManager")
+        compute_topic = self.getParameter("compute_topic")
 
-        scheduler_topic = self.getParameter("scheduler_topic", "NovaManager")
-
-        host = amqp_host
-
-        if CONF.NovaManager.nova_conf is not None:
-            if os.path.isfile(CONF.NovaManager.nova_conf):
-                CONFIG.read(CONF.NovaManager.nova_conf)
-            else:
-                raise Exception("nova configuration file not found at %s!"
-                                % CONF.NovaManager.nova_conf)
-
-            host = self.getParameter("my_ip", "DEFAULT", default=host)
-
-            conductor_topic = self.getParameter("conductor_topic", "DEFAULT",
-                                                default="conductor")
-
-            compute_topic = self.getParameter("compute_topic", "DEFAULT",
-                                              default="compute")
-
-            scheduler_topic = self.getParameter("scheduler_topic",
-                                                "DEFAULT",
-                                                default="scheduler")
-
-            db_connection = self.getParameter("connection", "database")
-
-            amqp_backend = self.getParameter("rpc_backend", "DEFAULT")
-
-            if amqp_backend == "rabbit":
-                amqp_host = self.getParameter("rabbit_host",
-                                              "oslo_messaging_rabbit",
-                                              default="localhost")
-
-                amqp_port = self.getParameter("rabbit_port",
-                                              "oslo_messaging_rabbit",
-                                              default="5672")
-
-                amqp_virt_host = self.getParameter("rabbit_virtual_host",
-                                                   "oslo_messaging_rabbit",
-                                                   default="/")
-
-                amqp_user = self.getParameter("rabbit_userid",
-                                              "oslo_messaging_rabbit",
-                                              default="guest")
-
-                amqp_password = self.getParameter("rabbit_password",
-                                                  "oslo_messaging_rabbit")
-            elif amqp_backend == "qpid":
-                amqp_host = self.getParameter("qpid_hostname",
-                                              "oslo_messaging_qpid",
-                                              default="localhost")
-
-                amqp_port = self.getParameter("qpid_port",
-                                              "oslo_messaging_qpid",
-                                              default="5672")
-
-                amqp_user = self.getParameter("qpid_username",
-                                              "oslo_messaging_qpid")
-
-                amqp_password = self.getParameter("qpid_password",
-                                                  "oslo_messaging_qpid")
-            else:
-                raise Exception("unsupported amqp backend found: %s!"
-                                % amqp_backend)
-
-        if not amqp_backend:
-            raise Exception("amqp_backend not defined!")
-
-        if not amqp_user:
-            raise Exception("amqp_user not defined!")
-
-        if not amqp_password:
-            raise Exception("amqp_password not defined!")
-
-        if not amqp_host:
-            raise Exception("amqp_host not defined!")
-
-        if not amqp_port:
-            raise Exception("amqp_port not defined!")
-
-        if not amqp_virt_host:
-            raise Exception("amqp_virt_host not defined!")
-
-        if not db_connection:
-            raise Exception("db_connection not defined!")
-
-        if not conductor_topic:
-            raise Exception("conductor_topic not defined!")
-
-        if not compute_topic:
-            raise Exception("compute_topic not defined!")
-
-        if not scheduler_topic:
-            raise Exception("scheduler_topic not defined!")
+        self.getParameter("metadata_proxy_shared_secret", fallback=True)
 
         try:
             LOG.debug("setting up the NOVA database connection: %s"
@@ -604,44 +513,27 @@ class NovaManager(Manager):
     def destroy(self):
         pass
 
-    def getParameter(self, name, section="DEFAULT",
-                     default=None, fallback=False):
-        if section != "NovaManager":
-            try:
-                return CONFIG.get(section, name)
-            except Exception:
-                if fallback is True:
-                    raise Exception("No attribute %r found in [%s] section of "
-                                    "nova.conf" % (name, section))
-                else:
-                    LOG.info("No attribute %r found in [%s] section of "
-                             "nova.conf, using default: %r"
-                             % (name, section, default))
+    def getParameter(self, name, fallback=False):
+        result = CONF.NovaManager.get(name, None)
 
-                    return default
+        if result is not None:
+            return result
+
+        if fallback is True:
+            raise Exception("No attribute %r found in [NovaManager] "
+                            "section of synergy.conf" % name)
         else:
-            result = CONF.NovaManager.get(name, None)
-
-            if result is not None:
-                return result
-
-            if fallback is True:
-                raise Exception("No attribute %r found in [NovaManager] "
-                                "section of synergy.conf" % name)
-            else:
-                LOG.info("No attribute %r found in in [NovaManager] of "
-                         "synergy.conf, using default: %r" % (name, default))
-                return default
+            return None
 
     def getUserData(self, server):
         if not server:
             return None
 
-        secret = self.getParameter("metadata_proxy_shared_secret", "neutron")
+        secret = CONF.NovaManager.metadata_proxy_shared_secret
 
         if not secret:
             return Exception("'metadata_proxy_shared_secret' "
-                             "attribute not defined in nova.conf")
+                             "attribute not defined in synergy.conf")
 
         digest = hmac.new(secret, server.getId(), hashlib.sha256).hexdigest()
 

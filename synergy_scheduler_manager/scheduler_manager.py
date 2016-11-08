@@ -1,15 +1,11 @@
 ﻿import logging
 import re
 
-try:
-    from oslo_config import cfg
-except ImportError:
-    from oslo.config import cfg
-
 from common.flavor import Flavor
 from common.quota import SharedQuota
 from common.request import Request
 from common.server import Server
+from oslo_config import cfg
 from synergy.common.manager import Manager
 from threading import Thread
 

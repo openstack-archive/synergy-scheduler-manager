@@ -1,11 +1,7 @@
 import logging
 
-try:
-    from oslo_config import cfg
-except ImportError:
-    from oslo.config import cfg
-
 from common.queue import QueueDB
+from oslo_config import cfg
 from sqlalchemy import create_engine
 from synergy.common.manager import Manager
 

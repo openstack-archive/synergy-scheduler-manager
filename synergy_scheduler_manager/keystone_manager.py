@@ -2,11 +2,6 @@ import json
 import logging
 import requests
 
-try:
-    from oslo_config import cfg
-except ImportError:
-    from oslo.config import cfg
-
 from common.endpoint import Endpoint
 from common.project import Project
 from common.role import Role
@@ -14,8 +9,7 @@ from common.service import Service
 from common.token import Token
 from common.trust import Trust
 from common.user import User
-
-
+from oslo_config import cfg
 from synergy.common.manager import Manager
 
 

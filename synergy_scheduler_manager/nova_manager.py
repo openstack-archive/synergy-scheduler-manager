@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import logging
+import oslo_messaging as oslo_msg
 import requests
 
 from common.block_device import BlockDeviceMapping
@@ -19,27 +20,9 @@ from nova.compute.rpcapi import ComputeAPI
 from nova.conductor.rpcapi import ComputeTaskAPI
 from nova.conductor.rpcapi import ConductorAPI
 from nova.objects import base as objects_base
-
-try:
-    from oslo_config import cfg
-except ImportError:
-    from oslo.config import cfg
-
-try:
-    import oslo_messaging as oslo_msg
-except ImportError:
-    import oslo.messaging as oslo_msg
-
-try:
-    from oslo_serialization import jsonutils
-except ImportError:
-    from oslo.serialization import jsonutils
-
-try:
-    from oslo_versionedobjects import base as ovo_base
-except ImportError:
-    from oslo.versionedobjects import base as ovo_base
-
+from oslo_config import cfg
+from oslo_serialization import jsonutils
+from oslo_versionedobjects import base as ovo_base
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from synergy.common.manager import Manager

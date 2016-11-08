@@ -1,12 +1,8 @@
 import ConfigParser
 import logging
 
-try:
-    from oslo_config import cfg
-except ImportError:
-    from oslo.config import cfg
-
 from common.quota import SharedQuota
+from oslo_config import cfg
 from synergy.common.manager import Manager
 
 

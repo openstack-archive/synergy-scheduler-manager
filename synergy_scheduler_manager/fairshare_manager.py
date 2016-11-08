@@ -4,12 +4,7 @@ import threading
 from common.user import User
 from datetime import datetime
 from datetime import timedelta
-
-try:
-    from oslo_config import cfg
-except ImportError:
-    from oslo.config import cfg
-
+from oslo_config import cfg
 from synergy.common.manager import Manager
 
 __author__ = "Lisa Zangrando"

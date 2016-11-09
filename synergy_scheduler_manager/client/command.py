@@ -45,10 +45,6 @@ class QueueCommand(ExecuteCommand):
                                                       "QueueManager",
                                                       command,
                                                       args=cmd_args)
-
-            if not isinstance(queue, Queue):
-                print("wrong data")
-
             table = []
             headers = ["name", "size", "is open"]
 
@@ -157,23 +153,59 @@ class UsageCommand(ExecuteCommand):
         usage_subparsers = usage_parser.add_subparsers(dest="command")
         show_parser = usage_subparsers.add_parser("show", add_help=True,
                                                   help="shows the usage info")
-        group = show_parser.add_mutually_exclusive_group()
+
+        subparsers = show_parser.add_subparsers()
+        parser_a = subparsers.add_parser('project', help='project help')
+
+        group = parser_a.add_mutually_exclusive_group()
+        group.add_argument("-d", "--project_id", metavar="<id>")
+        group.add_argument("-m", "--project_name", metavar="<name>")
+        group.add_argument("-a", "--all_projects", action="store_true")
+
+        parser_b = subparsers.add_parser('user', help='user help')
+
+        group = parser_b.add_mutually_exclusive_group(required=True)
+        group.add_argument("-d", "--project_id", metavar="<id>")
+        group.add_argument("-m", "--project_name", metavar="<name>")
+
+        group = parser_b.add_mutually_exclusive_group(required=True)
         group.add_argument("-i", "--user_id", metavar="<id>")
         group.add_argument("-n", "--user_name", metavar="<name>")
         group.add_argument("-a", "--all_users", action="store_true")
 
-        group = show_parser.add_mutually_exclusive_group()
-        group.add_argument("-d", "--project_id", metavar="<id>")
-        group.add_argument("-m", "--project_name", metavar="<name>")
-
     def execute(self, synergy_url, args):
         if args.command == "show":
             command = "show"
-            cmd_args = {"user_id": args.user_id,
-                        "user_name": args.user_name,
-                        "all_users": args.all_users,
-                        "project_id": args.project_id,
-                        "project_name": args.project_name}
+            user_id = None
+            if hasattr(args, "user_id"):
+                user_id = args.user_id
+
+            user_name = None
+            if hasattr(args, "user_name"):
+                user_name = args.user_name
+
+            all_users = False
+            if hasattr(args, "all_users"):
+                all_users = args.all_users
+
+            project_id = None
+            if hasattr(args, "project_id"):
+                project_id = args.project_id
+
+            project_name = None
+            if hasattr(args, "project_name"):
+                project_name = args.project_name
+
+            all_projects = False
+            if hasattr(args, "all_projects"):
+                all_projects = args.all_projects
+
+            cmd_args = {"user_id": user_id,
+                        "user_name": user_name,
+                        "all_users": all_users,
+                        "project_id": project_id,
+                        "project_name": project_name,
+                        "all_projects": all_projects}
 
             result = super(UsageCommand, self).execute(synergy_url,
                                                        "SchedulerManager",
@@ -181,18 +213,20 @@ class UsageCommand(ExecuteCommand):
                                                        args=cmd_args)
 
             if isinstance(result, Project):
-                self.printProject(result)
+                self.printProjects([result])
             elif isinstance(result, User):
                 self.printUsers([result])
-            else:
-                self.printUsers(result)
+            elif isinstance(result, list):
+                if all(isinstance(n, Project) for n in result):
+                    self.printProjects(result)
+                else:
+                    self.printUsers(result)
 
-    def printProject(self, project):
-        if not project:
+    def printProjects(self, projects):
+        if not projects:
             return
 
-        data = project.getData()
-        share = project.getShare()
+        data = projects[0].getData()
         date_format = "{:%d %b %Y %H:%M:%S}"
         from_date = date_format.format(data["time_window_from_date"])
         to_date = date_format.format(data["time_window_to_date"])
@@ -202,16 +236,20 @@ class UsageCommand(ExecuteCommand):
                    "share"]
 
         table = []
-        row = []
-        row.append(project.getName())
 
-        shared = "vcpus: {:.2f}% | memory: {:.2f}%".format(
-            data["effective_vcpus"] * 100, data["effective_memory"] * 100)
+        for project in projects:
+            data = project.getData()
+            share = project.getShare()
+            row = []
+            row.append(project.getName())
 
-        row.append(shared)
-        row.append("{:.2f}%".format(share.getNormalizedValue() * 100))
+            shared = "vcpus: {:.2f}% | memory: {:.2f}%".format(
+                data["effective_vcpus"] * 100, data["effective_memory"] * 100)
 
-        table.append(row)
+            row.append(shared)
+            row.append("{:.2f}%".format(share.getNormalizedValue() * 100))
+
+            table.append(row)
 
         print(tabulate(table, headers, tablefmt="fancy_grid"))
 
@@ -223,6 +261,7 @@ class UsageCommand(ExecuteCommand):
 
         date_format = "{:%d %b %Y %H:%M:%S}"
         data = users[0].getData()
+
         from_date = date_format.format(data["time_window_from_date"])
         to_date = date_format.format(data["time_window_to_date"])
 
@@ -233,7 +272,9 @@ class UsageCommand(ExecuteCommand):
 
         for user in users:
             share = user.getShare()
+
             data = user.getData()
+
             priority = user.getPriority()
 
             row = []

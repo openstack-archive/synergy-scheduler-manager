@@ -291,9 +291,13 @@ class SchedulerManager(Manager):
             usr_id = kargs.get("user_id", None)
             usr_name = kargs.get("user_name", None)
             all_users = kargs.get("all_users", False)
+            all_projects = kargs.get("all_projects", False)
             prj_id = kargs.get("project_id", None)
             prj_name = kargs.get("project_name", None)
             project = None
+
+            if all_projects:
+                return self.projects.values()
 
             if (usr_id is not None or usr_name is not None or all_users) and \
                     prj_id is None and prj_name is None:
@@ -312,7 +316,7 @@ class SchedulerManager(Manager):
 
                 if not project:
                     raise Exception("project (name=%r) not found!" % prj_name)
-            else:
+            elif not all_users:
                 return self.projects.values()
 
             if usr_id or usr_name:

@@ -11,8 +11,11 @@ function copy_source() {
 }
 
 function get_version() {
+    # The version is taken from the tag on the current commit.
+    # There *must be* a tag on the current commit to continue building the
+    # package.
     cd $PKG_DIR
-    export PKG_VERSION=$(git tag -l "*.*.*" | sort -V | tail -1)
+    export PKG_VERSION=$(git tag --points-at HEAD)
 }
 
 function setup() {

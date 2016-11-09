@@ -1,7 +1,7 @@
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 
 Name:          python-synergy-scheduler-manager
-Version:       1.0.2
+Version:       2.0.0
 Release:       1%{?dist}
 Summary:       Advanced scheduling capability for OpenStack.
 Source:        %name-%version.tar.bz2
@@ -49,6 +49,30 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Wed Nov 09 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 2.0.0-1
+- Synergy doesn't rely anymore on nova.conf
+- Method deserialize() fixed
+- The QuotaCommand shows a wrong value (%) for the field 'share'
+
+* Wed Nov 09 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 1.2.0-1
+- Scheduler managers enhanced
+- Remove versions for required packages
+- fix git and pbr when packaging with docker
+- fix synergy-service version in spec file (rpm)
+- fix required packages when packaging
+- fix to get the synergy version when packaging
+
+* Wed Nov 09 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 1.1.0-1
+- use pbr fully for easier package building
+- fix connection URL to RabbitMQ
+- Added Queue class to synergy_scheduler_manager/common/queue.py
+- Common objects and relative test units added
+- Destroy() method fixed
+- Fix requirement version pinning
+- Use dependency pinning
+- fix OpenStack CentOS repo for docker packaging
+- Cleanup tox.ini: Remove obsolete constraints
+
 * Mon Aug 22 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 1.0.2-1
 - Add python-nova dependency
 

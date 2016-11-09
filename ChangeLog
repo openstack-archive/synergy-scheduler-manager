@@ -1,6 +1,28 @@
 CHANGES
 =======
 
+* Clean up oslo imports
+
+2.0.0
+-----
+
+* Synergy doesn't rely anymore on nova.conf
+* Method deserialize() fixed
+* The QuotaCommand shows a wrong value (%) for the field 'share'
+
+1.2.0
+-----
+
+* Scheduler managers enhanced
+* Remove versions for required packages
+* fix git and pbr when packaging with docker
+* fix synergy-service version in spec file (rpm)
+* fix required packages when packaging
+* fix to get the synergy version when packaging
+
+1.1.0
+-----
+
 * use pbr fully for easier package building
 * fix connection URL to RabbitMQ
 * Added Queue class to synergy_scheduler_manager/common/queue.py
@@ -10,6 +32,10 @@ CHANGES
 * Use dependency pinning
 * fix OpenStack CentOS repo for docker packaging
 * Cleanup tox.ini: Remove obsolete constraints
+
+1.0.2
+-----
+
 * Add python-nova as a dependency
 
 1.0.1

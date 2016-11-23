@@ -10,6 +10,8 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 import heapq
+
+from datetime import datetime
 from mock import call
 from mock import create_autospec
 from sqlalchemy.engine.base import Engine
@@ -87,53 +89,35 @@ class TestPriorityQueue(base.TestCase):
     def setUp(self):
         super(TestPriorityQueue, self).setUp()
         self.pq = PriorityQueue()
+        now = datetime.now()
 
-    def test_len(self):
-        self.pq.put(1, "a")
-        self.pq.put(3, "b")
-        self.pq.put(10, "c")
-        self.assertEqual(3, self.pq.__len__())
+        for i in range(0, 3):
+            item = QueueItem(id=i,
+                             user_id=100,
+                             prj_id=1,
+                             priority=1000,
+                             retry_count=1,
+                             creation_time=now,
+                             last_update=now,
+                             data=i)
+            self.pq.put(i, item)
 
-    def test_iter(self):
-        self.pq.put(1, "a")
-        self.pq.put(3, "b")
-        self.pq.put(10, "c")
-        self.assertEqual('c', self.pq.__iter__().get())
-        self.assertEqual('b', self.pq.__iter__().get())
-        self.assertEqual('a', self.pq.__iter__().get())
-
-    def test_put_get(self):
-        self.pq.put(1, "a")
-        self.pq.put(3, "b")
-        self.pq.put(10, "c")
-
-        self.assertEqual("c", self.pq.get())
-        self.assertEqual("b", self.pq.get())
-        self.assertEqual("a", self.pq.get())
+    def test_get(self):
+        self.assertEqual(2, self.pq.get().getId())
+        self.assertEqual(1, self.pq.get().getId())
+        self.assertEqual(0, self.pq.get().getId())
 
     def test_size(self):
-        self.pq.put(1, "a")
-        self.pq.put(3, "b")
-        self.pq.put(10, "c")
         self.assertEqual(3, self.pq.size())
 
     def test_items(self):
-        self.pq.put(1, "a")
-        self.pq.put(3, "b")
-        self.pq.put(10, "c")
-        self.assertEqual('c', self.pq.items()[0][2])
+        self.assertEqual(3, len(self.pq.items()))
 
     def test_smallest(self):
-        self.pq.put(1, "a")
-        self.pq.put(3, "b")
-        self.pq.put(10, "c")
-        self.assertEqual('c', self.pq.smallest(1)[0][2])
+        self.assertEqual(0, self.pq.smallest(1)[0].getId())
 
     def test_largest(self):
-        self.pq.put(1, "a")
-        self.pq.put(3, "b")
-        self.pq.put(10, "c")
-        self.assertEqual('a', self.pq.largest(1)[0][2])
+        self.assertEqual(2, self.pq.largest(1)[0].getId())
 
 
 class TestQueueDB(base.TestCase):
@@ -163,9 +147,9 @@ class TestQueueDB(base.TestCase):
         self.assertIn(insert_call, self.db_engine_mock.mock_calls)
 
         # Check the item existence and values in the in-memory queue
-        priority, index, item = heapq.heappop(self.q.pqueue._heap)
+        priority, timestamp, item = heapq.heappop(self.q.pqueue._heap)
         self.assertEqual(-10, priority)
-        self.assertEqual(0, index)
+        self.assertEqual(item.getCreationTime(), timestamp)
         self.assertEqual(1, item.user_id)
         self.assertEqual(2, item.prj_id)
         self.assertEqual(10, item.priority)
@@ -239,4 +223,4 @@ class TestQueueDB(base.TestCase):
         # Check the DB call and that the new QueueItem is in the queue
         self.q.updateItem(qitem)
         self.assertEqual(execute_call, execute_mock.call_args)
-        self.assertIn((-10, 0, qitem), self.q.pqueue._heap)
+        self.assertIn((-10, qitem.getCreationTime(), qitem), self.q.pqueue._heap)

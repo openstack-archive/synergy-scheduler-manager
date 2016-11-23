@@ -174,13 +174,20 @@ class Worker(Thread):
                     continue
 
                 quota = self.projects[prj_id].getQuota()
+                quota = self.projects[prj_id].getQuota()
+                computes = []
+                blocking = False
 
-                if quota.allocate(server, blocking=False):
+                if server.isEphemeral() and not SharedQuota.isEnabled():
+                    blocking = True
+
+                if quota.allocate(server, blocking=blocking):
                     try:
                         computes = self.nova_manager.selectComputes(request)
                     except Exception as ex:
-                        LOG.warn("Worker %s: compute %r not found! reason=%s"
-                                 % (self.name, server.getId(), ex))
+                        LOG.warn("Worker %s: compute not found for server %r!"
+                                 " [reason=%s]" % (self.name,
+                                                   server.getId(), ex))
 
                     found = False
 

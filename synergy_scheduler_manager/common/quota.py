@@ -132,7 +132,6 @@ class Quota(SynergyObject):
 
         if server.isEphemeral():
             if SharedQuota.allocate(server, blocking):
-                LOG.info(">> SharedQuota.allocate OK")
                 shared = self.get("shared")
                 servers = shared["servers"]
                 resources = shared["resources"]
@@ -147,23 +146,25 @@ class Quota(SynergyObject):
                     self.condition.notifyAll()
                 return True
             else:
-                LOG.info(">> SharedQuota.allocate NO")
                 return False
 
         private = self.get("private")
         servers = private["servers"]
         resources = private["resources"]
 
-        if vcpus > resources["vcpus"]["size"] or \
-                memory > resources["memory"]["size"]:
-            raise Exception("the required resources for server %r "
-                            "exceed the quota size" % server_id)
-
         with self.condition:
+            if vcpus > resources["vcpus"]["size"] or \
+                    memory > resources["memory"]["size"]:
+                self.condition.notifyAll()
+                raise Exception("the required resources for server %r "
+                                "exceed the quota size" % server_id)
+
             if server_id in servers["active"]:
+                self.condition.notifyAll()
                 raise Exception("resources for server %r already allocated"
                                 % server_id)
             elif server_id in servers["building"]:
+                self.condition.notifyAll()
                 raise Exception("resources for server %r waiting "
                                 "to be allocated" % server_id)
             elif state:
@@ -318,6 +319,7 @@ class SharedQuota(SynergyObject):
     lastAllocationTime = datetime.now()
     lastReleaseTime = datetime.now()
     enabled = False
+    total = 0
 
     def __init__(self):
         super(SharedQuota, self).__init__()
@@ -327,6 +329,7 @@ class SharedQuota(SynergyObject):
         self.set("enabled", SharedQuota.enabled)
         self.set("lastAllocationTime", SharedQuota.lastAllocationTime)
         self.set("lastReleaseTime", SharedQuota.lastReleaseTime)
+        self.set("total", SharedQuota.total)
 
     @classmethod
     def isEnabled(cls):
@@ -398,16 +401,26 @@ class SharedQuota(SynergyObject):
         memory = flavor.getMemory()
         found = False
 
-        if vcpus > cls.resources["vcpus"]["size"] or \
-                memory > cls.resources["memory"]["size"]:
-            raise Exception("the required resources for server %r "
-                            "exceed the quota size" % server_id)
-
         with cls.condition:
+            if not cls.enabled:
+                if blocking:
+                    cls.condition.wait()
+                else:
+                    cls.condition.notifyAll()
+                    return False
+
+            if vcpus > cls.resources["vcpus"]["size"] or \
+                    memory > cls.resources["memory"]["size"]:
+                cls.condition.notifyAll()
+                raise Exception("the required resources for server %r "
+                                "exceed the quota size" % server_id)
+
             if server_id in cls.servers["active"]:
+                cls.condition.notifyAll()
                 raise Exception("resources for server %r already allocated"
                                 % server_id)
             elif server_id in cls.servers["building"]:
+                cls.condition.notifyAll()
                 raise Exception("resources for server %r already waiting "
                                 "to be allocated" % server_id)
             elif state:
@@ -416,6 +429,7 @@ class SharedQuota(SynergyObject):
                 cls.resources["instances"]["used"] += 1
 
                 cls.servers[state].append(server_id)
+                cls.total += 1
 
                 found = True
             else:
@@ -462,6 +476,7 @@ class SharedQuota(SynergyObject):
                                 cls.resources["memory"]["size"]))
 
                     cls.lastAllocationTime = datetime.now()
+                    cls.total += 1
                 elif blocking:
                     LOG.info("allocate wait!!!")
                     cls.condition.wait()
@@ -540,6 +555,7 @@ class SharedQuota(SynergyObject):
 
         cls.resources = entity["resources"]
         cls.enabled = entity["enabled"]
+        cls.total = entity["total"]
 
         if isinstance(entity["lastAllocationTime"], datetime):
             cls.lastAllocationTime = entity["lastAllocationTime"]

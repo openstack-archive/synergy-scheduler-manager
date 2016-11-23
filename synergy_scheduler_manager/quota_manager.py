@@ -199,6 +199,7 @@ class QuotaManager(Manager):
                                  % (uuid, TTL, state, prj_id))
 
                     self.nova_manager.deleteServer(server)
+                    SharedQuota.release(server)
             except Exception as ex:
                 LOG.error(ex)
                 raise ex
@@ -248,6 +249,8 @@ class QuotaManager(Manager):
                 if quota.getSize("memory") > 0:
                     static_memory += quota.getSize("memory")
 
+            enabled = False
+
             if total_vcpus < static_vcpus:
                 if self.getProjects():
                     LOG.warn("shared quota: the total statically "
@@ -257,17 +260,15 @@ class QuotaManager(Manager):
             else:
                 shared_vcpus = total_vcpus - static_vcpus
 
-            if total_memory < static_memory:
-                enabled = False
-
-                if self.getProjects():
-                    LOG.warn("shared quota: the total statically "
-                             "allocated memory (%s) is greater than the "
-                             "total amount of memory allowed (%s)"
-                             % (static_memory, total_memory))
-            else:
-                enabled = True
-                shared_memory = total_memory - static_memory
+                if total_memory < static_memory:
+                    if self.getProjects():
+                        LOG.warn("shared quota: the total statically "
+                                 "allocated memory (%s) is greater than "
+                                 "the total amount of memory allowed (%s)"
+                                 % (static_memory, total_memory))
+                else:
+                    enabled = True
+                    shared_memory = total_memory - static_memory
 
             if enabled:
                 LOG.info("shared quota enabled: vcpus=%s memory=%s"

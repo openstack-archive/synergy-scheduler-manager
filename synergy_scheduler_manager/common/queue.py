@@ -95,7 +95,6 @@ class PriorityQueue(object):
 
     def __init__(self):
         self._heap = []
-        self._count = 0
 
     def __len__(self):
         return len(self._heap)
@@ -105,8 +104,7 @@ class PriorityQueue(object):
         return self
 
     def put(self, priority, item):
-        heapq.heappush(self._heap, (-priority, self._count, item))
-        self._count += 1
+        heapq.heappush(self._heap, (-priority, item.getCreationTime(), item))
 
     def get(self):
         return heapq.heappop(self._heap)[2]

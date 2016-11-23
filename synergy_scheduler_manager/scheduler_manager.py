@@ -102,11 +102,13 @@ class Notifications(object):
 
 class Worker(Thread):
 
-    def __init__(self, name, queue, projects, nova_manager, keystone_manager):
+    def __init__(self, name, backfill_depth, queue,
+                 projects, nova_manager, keystone_manager):
         super(Worker, self).__init__()
         self.setDaemon(True)
 
         self.name = name
+        self.backfill_depth = backfill_depth
         self.queue = queue
         self.projects = projects
         self.nova_manager = nova_manager
@@ -137,7 +139,12 @@ class Worker(Thread):
 
                 while queue_items:
                     item = queue_items.pop(0)
+                    item.setPriority(item.getPriority() + 9999)
                     self.queue.reinsertItem(item)
+
+            if len(queue_items) >= self.backfill_depth:
+                SharedQuota.wait()
+                continue
 
             queue_item = self.queue.getItem(blocking=False)
 
@@ -167,8 +174,8 @@ class Worker(Thread):
                         self.queue.deleteItem(queue_item)
                         continue
                 except Exception as ex:
-                    LOG.warn("Worker %s: the server %r is not anymore "
-                             "available! reason=%s" % (self.name, prj_id, ex))
+                    LOG.warn("Worker %s: the server %r is not anymore availa"
+                             "ble ! [reason=%s]" % (self.name, server_id, ex))
                     self.queue.deleteItem(queue_item)
 
                     continue
@@ -235,7 +242,8 @@ class SchedulerManager(Manager):
         super(SchedulerManager, self).__init__("SchedulerManager")
 
         self.config_opts = [
-            cfg.FloatOpt('default_TTL', default=10.0),
+            cfg.IntOpt("backfill_depth", default=100),
+            cfg.FloatOpt("default_TTL", default=10.0),
             cfg.ListOpt("projects", default=[], help="the projects list"),
             cfg.ListOpt("shares", default=[], help="the shares list"),
             cfg.ListOpt("TTLs", default=[], help="the TTLs list")
@@ -264,7 +272,7 @@ class SchedulerManager(Manager):
         self.keystone_manager = self.getManager("KeystoneManager")
         self.fairshare_manager = self.getManager("FairShareManager")
         self.default_TTL = float(CONF.SchedulerManager.default_TTL)
-        self.fairshare_manager = self.getManager("FairShareManager")
+        self.backfill_depth = CONF.SchedulerManager.backfill_depth
         self.projects = {}
         self.listener = None
         self.exit = False
@@ -400,6 +408,7 @@ class SchedulerManager(Manager):
             self.dynamic_queue = self.queue_manager.getQueue("DYNAMIC")
 
             dynamic_worker = Worker("DYNAMIC",
+                                    self.backfill_depth,
                                     self.dynamic_queue,
                                     self.projects,
                                     self.nova_manager,
@@ -417,7 +426,7 @@ class SchedulerManager(Manager):
                 targets=[target],
                 endpoints=[self.notifications])
 
-            LOG.info("listener created")
+            self.quota_manager.deleteExpiredServers()
 
             self.listener.start()
             self.configured = True

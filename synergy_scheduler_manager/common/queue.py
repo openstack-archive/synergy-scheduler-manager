@@ -95,7 +95,6 @@ class PriorityQueue(object):
 
     def __init__(self):
         self._heap = []
-        self._count = 0
 
     def __len__(self):
         return len(self._heap)
@@ -105,8 +104,7 @@ class PriorityQueue(object):
         return self
 
     def put(self, priority, item):
-        heapq.heappush(self._heap, (-priority, self._count, item))
-        self._count += 1
+        heapq.heappush(self._heap, (-priority, item.getCreationTime(), item))
 
     def get(self):
         return heapq.heappop(self._heap)[2]
@@ -115,13 +113,15 @@ class PriorityQueue(object):
         return len(self._heap)
 
     def items(self):
-        return [heapq.heappop(self._heap) for i in range(len(self._heap))]
+        return [heapq.heappop(self._heap)[2] for i in range(len(self._heap))]
 
     def smallest(self, x):
-        return heapq.nsmallest(x, self._heap)
+        result = heapq.nsmallest(x, self._heap, key=lambda s: -s[0])
+        return [item[2] for item in result]
 
     def largest(self, x):
-        return heapq.nlargest(x, self._heap)
+        result = heapq.nlargest(x, self._heap, key=lambda s: -s[0])
+        return [item[2] for item in result]
 
 
 class Queue(SynergyObject):

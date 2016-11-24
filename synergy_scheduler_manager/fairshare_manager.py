@@ -73,7 +73,7 @@ class FairShareManager(Manager):
         self.queue_manager = self.getManager("QueueManager")
         self.quota_manager = self.getManager("QuotaManager")
         self.keystone_manager = self.getManager("KeystoneManager")
-        self.condition = threading.Condition()
+        self.fs_condition = threading.Condition()
 
         if self.decay_weight < 0:
             self.decay_weight = float(0)
@@ -108,14 +108,14 @@ class FairShareManager(Manager):
             raise Exception("command=%r not supported!" % command)
 
     def task(self):
-        with self.condition:
+        with self.fs_condition:
             try:
                 self.calculateFairShare()
             except Exception as ex:
                 LOG.error(ex)
                 raise ex
             finally:
-                self.condition.notifyAll()
+                self.fs_condition.notifyAll()
 
     def destroy(self):
         pass
@@ -128,12 +128,9 @@ class FairShareManager(Manager):
         if not user:
             raise Exception("user=%s not found!" % user_id)
 
-        with self.condition:
-            priority = user.getPriority()
-            fairshare_vcpus = priority.getFairShare("vcpus")
-            fairshare_memory = priority.getFairShare("memory")
-
-            self.condition.notifyAll()
+        priority = user.getPriority()
+        fairshare_vcpus = priority.getFairShare("vcpus")
+        fairshare_memory = priority.getFairShare("memory")
 
         if not timestamp:
             timestamp = datetime.utcnow()
@@ -170,9 +167,9 @@ class FairShareManager(Manager):
 
     def removeProject(self, prj_id):
         if prj_id in self.projects:
-            with self.condition:
+            with self.fs_condition:
                 del self.projects[prj_id]
-                self.condition.notifyAll()
+                self.fs_condition.notifyAll()
 
     def calculateFairShare(self):
         if not self.projects:

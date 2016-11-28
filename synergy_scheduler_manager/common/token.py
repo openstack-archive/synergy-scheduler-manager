@@ -64,7 +64,8 @@ class Token(SynergyObject):
 
         token.setUser(user)
 
-        token.getExtras().update(data["extras"])
+        if "extras" in data:
+            token.getExtras().update(data["extras"])
 
         for info in data["roles"]:
             role = Role()

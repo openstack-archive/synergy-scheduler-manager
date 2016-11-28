@@ -69,7 +69,7 @@ class MessagingAPI(object):
     def getRPCClient(self, target, version_cap=None, serializer=None):
         assert self.TRANSPORT is not None
 
-        LOG.info("creating RPC client with target %s" % target)
+        LOG.debug("creating RPC client with target %s" % target)
         return oslo_msg.RPCClient(self.TRANSPORT,
                                   target,
                                   version_cap=version_cap,
@@ -78,7 +78,7 @@ class MessagingAPI(object):
     def getRPCServer(self, target, endpoints, serializer=None):
         assert self.TRANSPORT is not None
 
-        LOG.info("creating RPC server with target %s" % target)
+        LOG.debug("creating RPC server with target %s" % target)
         return oslo_msg.get_rpc_server(self.TRANSPORT,
                                        target,
                                        endpoints,
@@ -88,8 +88,8 @@ class MessagingAPI(object):
     def getNotificationListener(self, targets, endpoints):
         assert self.TRANSPORT is not None
 
-        LOG.info("creating notification listener with target %s endpoints %s"
-                 % (targets, endpoints))
+        LOG.debug("creating notification listener with target %s endpoints %s"
+                  % (targets, endpoints))
         return oslo_msg.get_notification_listener(self.TRANSPORT,
                                                   targets,
                                                   endpoints,
@@ -949,8 +949,7 @@ class NovaManager(Manager):
         if is_class:
             url = "os-quota-class-sets/%s" % quota.getId()
 
-            qs = {"quota_class_set": {"force": True,
-                                      "cores": quota.getSize("vcpus"),
+            qs = {"quota_class_set": {"cores": quota.getSize("vcpus"),
                                       "ram": quota.getSize("memory"),
                                       "instances": quota.getSize("instances")}}
         else:

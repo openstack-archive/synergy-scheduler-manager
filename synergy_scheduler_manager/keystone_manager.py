@@ -48,12 +48,20 @@ class KeystoneManager(Manager):
             cfg.StrOpt("username",
                        help="the name of user with admin role",
                        required=True),
+            cfg.StrOpt("user_domain_name",
+                       help="the user domain",
+                       default="default",
+                       required=False),
             cfg.StrOpt("password",
                        help="the password of user with admin role",
                        required=True),
             cfg.StrOpt("project_name",
                        help="the project to request authorization on",
                        required=True),
+            cfg.StrOpt("project_domain_name",
+                       help="the project domain",
+                       default="default",
+                       required=False),
             cfg.StrOpt("project_id",
                        help="the project id to request authorization on",
                        required=False),
@@ -71,7 +79,9 @@ class KeystoneManager(Manager):
         self.auth_url = CONF.KeystoneManager.auth_url
         self.username = CONF.KeystoneManager.username
         self.password = CONF.KeystoneManager.password
+        self.user_domain_name = CONF.KeystoneManager.user_domain_name
         self.project_name = CONF.KeystoneManager.project_name
+        self.project_domain_name = CONF.KeystoneManager.project_domain_name
         self.project_id = CONF.KeystoneManager.project_id
         self.timeout = CONF.KeystoneManager.timeout
         self.trust_expiration = CONF.KeystoneManager.trust_expiration
@@ -146,20 +156,23 @@ class KeystoneManager(Manager):
                    "User-Agent": "synergy"}
 
         identity = {"methods": ["password"],
-                    "password": {"user": {"name": self.username,
-                                          "domain": {"id": "default"},
-                                          "password": self.password}}}
+                    "password": {
+                        "user": {"name": self.username,
+                                 "domain": {"name": self.user_domain_name},
+                                 "password": self.password}}}
 
         data = {"auth": {}}
         data["auth"]["identity"] = identity
 
         if self.project_name:
-            data["auth"]["scope"] = {"project": {"name": self.project_name,
-                                                 "domain": {"id": "default"}}}
+            data["auth"]["scope"] = {
+                "project": {"name": self.project_name,
+                            "domain": {"name": self.project_domain_name}}}
 
         if self.project_id:
-            data["auth"]["scope"] = {"project": {"id": self.project_id,
-                                                 "domain": {"id": "default"}}}
+            data["auth"]["scope"] = {
+                "project": {"id": self.project_id,
+                            "domain": {"name": self.project_domaini_name}}}
 
         response = requests.post(url=self.auth_url + "/auth/tokens",
                                  headers=headers,

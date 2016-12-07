@@ -9,6 +9,8 @@ from common.service import Service
 from common.token import Token
 from common.trust import Trust
 from common.user import User
+from datetime import datetime
+from datetime import timedelta
 from oslo_config import cfg
 from synergy.common.manager import Manager
 
@@ -72,6 +74,10 @@ class KeystoneManager(Manager):
             cfg.IntOpt("trust_expiration",
                        help="set the trust expiration",
                        default=24,
+                       required=False),
+            cfg.IntOpt("clock_skew",
+                       help="set the clock skew (seconds)",
+                       default=60,
                        required=False)
         ]
 
@@ -85,6 +91,7 @@ class KeystoneManager(Manager):
         self.project_id = CONF.KeystoneManager.project_id
         self.timeout = CONF.KeystoneManager.timeout
         self.trust_expiration = CONF.KeystoneManager.trust_expiration
+        self.clock_skew = CONF.KeystoneManager.clock_skew
         self.token = None
         self.auth_public_url = None
 
@@ -143,7 +150,10 @@ class KeystoneManager(Manager):
 
     def authenticate(self):
         if self.token is not None:
-            if self.token.isExpired():
+            if self.token.isExpired() or (
+                self.token.getExpiration() -
+                datetime.utcnow() <= timedelta(
+                    seconds=self.clock_skew)):
                 try:
                     self.deleteToken(self.token.getId())
                 except requests.exceptions.HTTPError:

@@ -36,7 +36,7 @@ class TestNotifications(base.TestCase):
 
         prjDict = {1: project1, 2: project2}
 
-        ns = Notifications(prjDict)
+        ns = Notifications(prjDict, None)
         payload = {
             "state": "deleted",
             "instance_type": "instance_type",

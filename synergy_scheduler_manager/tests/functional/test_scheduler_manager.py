@@ -13,40 +13,95 @@
 from mock import create_autospec
 from mock import MagicMock
 from sqlalchemy.engine.base import Engine
+from synergy_scheduler_manager.common.flavor import Flavor
 from synergy_scheduler_manager.common.project import Project
-
 from synergy_scheduler_manager.common.queue import QueueDB
 from synergy_scheduler_manager.common.queue import QueueItem
+from synergy_scheduler_manager.common.quota import SharedQuota
+from synergy_scheduler_manager.common.server import Server
 from synergy_scheduler_manager.scheduler_manager import Notifications
 from synergy_scheduler_manager.scheduler_manager import Worker
 from synergy_scheduler_manager.tests.unit import base
 
 
 class TestNotifications(base.TestCase):
-    # TO COMPLETE
+
     def test_info_quota(self):
+        SharedQuota.setSize("vcpus", 20)
+        SharedQuota.setSize("memory", 4096)
+        SharedQuota.enable()
 
-        project1 = Project()
-        project1.setId(1)
-        project1.setName("test1")
+        self.assertEqual(20, SharedQuota.getSize('vcpus'))
+        self.assertEqual(4096, SharedQuota.getSize('memory'))
 
-        project2 = Project()
-        project2.setId(2)
-        project2.setName("test2")
+        prj_a = Project()
+        prj_a.setId(1)
+        prj_a.setName("prj_a")
 
-        prjDict = {1: project1, 2: project2}
+        prj_b = Project()
+        prj_b.setId(2)
+        prj_b.setName("prj_b")
 
-        ns = Notifications(prjDict)
+        prjDict = {1: prj_a, 2: prj_b}
+
+        quota = prjDict[1].getQuota()
+
+        quota.setSize("vcpus", 10, private=True)
+        quota.setSize("memory", 2048, private=True)
+
+        self.assertEqual(10, quota.getSize('vcpus', private=True))
+        self.assertEqual(2048, quota.getSize('memory', private=True))
+
+        quota.setSize("vcpus",
+                      SharedQuota.getSize('vcpus'),
+                      private=False)
+        quota.setSize("memory",
+                      SharedQuota.getSize('memory'),
+                      private=False)
+
+        self.assertEqual(20, quota.getSize('vcpus', private=False))
+        self.assertEqual(4096, quota.getSize('memory', private=False))
+
+        flavor = Flavor()
+        flavor.setVCPUs(2)
+        flavor.setMemory(512)
+
+        server = Server()
+        server.setType("ephemeral")
+        server.setId("server_id")
+        server.setFlavor(flavor)
+
+        self.assertEqual(True, server.isEphemeral())
+        try:
+            allocated = quota.allocate(server, blocking=False)
+        except Exception as ex:
+            print(ex)
+
+        self.assertEqual(True, allocated)
+
+        self.assertEqual(0, quota.getUsage('vcpus', private=True))
+        self.assertEqual(0, quota.getUsage('memory', private=True))
+
+        self.assertEqual(2, quota.getUsage('vcpus', private=False))
+        self.assertEqual(512, quota.getUsage('memory', private=False))
+
+        self.assertEqual(2, SharedQuota.getUsage('vcpus'))
+        self.assertEqual(512, SharedQuota.getUsage('memory'))
+
+        ns = Notifications(prjDict, None)
+
         payload = {
             "state": "deleted",
-            "instance_type": "instance_type",
-            "user_id": "user_id",
-            "root_gb": "root_gb",
-            "metadata": "metadata",
-            "instance_id": 1,
-            "tenant_id": 2,
-            "memory_mb": 3,
-            "vcpus": 4}
+            "deleted_at": "2016-12-09T10:06:10.000000",
+            "terminated_at": "2016-12-09T10:06:10.025305",
+            "instance_type": "m1.tiny",
+            "user_id": "user",
+            "root_gb": "1",
+            "metadata": {},
+            "instance_id": "server_id",
+            "tenant_id": 1,
+            "memory_mb": 512,
+            "vcpus": 2}
 
         ns.info(ctxt=None,
                 publisher_id=None,
@@ -54,9 +109,16 @@ class TestNotifications(base.TestCase):
                 payload=payload,
                 metadata=None)
 
-        quota = ns.projects[2].getQuota()
-        self.assertEqual(0, quota.getUsage("memory", private=False))
-        self.assertEqual(0, quota.getUsage("vcpus", private=False))
+        quota = prjDict[1].getQuota()
+
+        self.assertEqual(0, quota.getUsage("vcpus", private=True))
+        self.assertEqual(0, quota.getUsage("memory", private=True))
+
+        self.assertEqual(0, quota.getUsage('vcpus', private=False))
+        self.assertEqual(0, quota.getUsage('memory', private=False))
+
+        self.assertEqual(0, SharedQuota.getUsage('vcpus'))
+        self.assertEqual(0, SharedQuota.getUsage('memory'))
 
 
 class TestWorker(base.TestCase):

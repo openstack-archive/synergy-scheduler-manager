@@ -199,7 +199,6 @@ class QuotaManager(Manager):
                                  % (uuid, TTL, state, prj_id))
 
                     self.nova_manager.deleteServer(server)
-                    SharedQuota.release(server)
             except Exception as ex:
                 LOG.error(ex)
                 raise ex

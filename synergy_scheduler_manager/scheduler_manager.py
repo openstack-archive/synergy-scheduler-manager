@@ -34,10 +34,47 @@ LOG = logging.getLogger(__name__)
 
 class Notifications(object):
 
-    def __init__(self, projects):
+    def __init__(self, projects, nova_manager):
         super(Notifications, self).__init__()
 
         self.projects = projects
+        self.nova_manager = nova_manager
+
+    def _makeServer(self, server_info):
+        if not server_info:
+            return
+
+        flavor = Flavor()
+        flavor.setMemory(server_info["memory_mb"])
+        flavor.setVCPUs(server_info["vcpus"])
+        flavor.setStorage(server_info["root_gb"])
+
+        if "instance_type" in server_info:
+            flavor.setName(server_info["instance_type"])
+
+        server = Server()
+        server.setFlavor(flavor)
+        server.setUserId(server_info["user_id"])
+        server.setMetadata(server_info["metadata"])
+        server.setDeletedAt(server_info["deleted_at"])
+        server.setTerminatedAt(server_info["terminated_at"])
+
+        if "uuid" in server_info:
+            server.setId(server_info["uuid"])
+        elif "instance_id" in server_info:
+            server.setId(server_info["instance_id"])
+
+        if "project_id" in server_info:
+            server.setProjectId(server_info["project_id"])
+        elif "tenant_id" in server_info:
+            server.setProjectId(server_info["tenant_id"])
+
+        if "vm_state" in server_info:
+            server.setState(server_info["vm_state"])
+        elif "state" in server_info:
+            server.setState(server_info["state"])
+
+        return server
 
     def info(self, ctxt, publisher_id, event_type, payload, metadata):
         LOG.debug("Notification INFO: event_type=%s payload=%s"
@@ -52,41 +89,36 @@ class Notifications(object):
             (state == "deleted" or state == "error" or state == "building")) or
             (event_type == "compute.instance.update" and state == "error") or
                 (event_type == "scheduler.run_instance" and state == "error")):
-            instance_info = None
+            server_info = None
 
             if event_type == "scheduler.run_instance":
-                instance_info = payload["request_spec"]["instance_type"]
+                server_info = payload["request_spec"]["instance_type"]
             else:
-                instance_info = payload
+                server_info = payload
 
-            if instance_info["tenant_id"] not in self.projects:
+            if server_info["tenant_id"] not in self.projects:
                 return
 
-            flavor = Flavor()
-            flavor.setName(instance_info["instance_type"])
-            flavor.setMemory(instance_info["memory_mb"])
-            flavor.setVCPUs(instance_info["vcpus"])
-            flavor.setStorage(instance_info["root_gb"])
+            server = self._makeServer(server_info)
+            flavor = server.getFlavor()
 
-            server = Server()
-            server.setFlavor(flavor)
-            server.setId(instance_info["instance_id"])
-            server.setUserId(instance_info["user_id"])
-            server.setProjectId(instance_info["tenant_id"])
-            server.setMetadata(instance_info["metadata"])
+            message = "N/A"
+            if "message" in server_info:
+                message = server_info["message"]
 
             LOG.debug("Notification INFO (type=%s state=%s): vcpus=%s "
-                      "memory=%s prj_id=%s server_id=%s"
-                      % (event_type, state, flavor.getVCPUs(),
+                      "memory=%s prj_id=%s server_id=%s (message=%s)"
+                      % (event_type, server.getState(), flavor.getVCPUs(),
                          flavor.getMemory(), server.getProjectId(),
-                         server.getId()))
+                         server.getId(), message))
 
             quota = self.projects[server.getProjectId()].getQuota()
 
             try:
                 quota.release(server)
             except Exception as ex:
-                LOG.warn("Notification INFO: %s" % ex)
+                LOG.warn("Cannot release server id=%r: %s"
+                         % (server.getId(), ex))
                 LOG.error("Exception has occured", exc_info=1)
 
     def warn(self, ctxt, publisher_id, event_type, payload, metadata):
@@ -96,8 +128,52 @@ class Notifications(object):
                   "payload=%s" % (event_type, state, instance_id, payload))
 
     def error(self, ctxt, publisher_id, event_type, payload, metadata):
-        LOG.debug("Notification ERROR: event_type=%s payload=%s metadata=%s"
-                  % (event_type, payload, metadata))
+        server = None
+        message = "N\A"
+        server_info = None
+
+        if event_type == "terminate_instance":
+            server_info = payload["args"]["instance"]
+            message = payload["exception"]["value"]
+
+        elif event_type == "compute.instance.create.error" or\
+                event_type == "compute.instance.update.error":
+            server_info = payload
+            message = payload["message"]
+
+        server = self._makeServer(server_info)
+
+        if not server:
+            LOG.info("Notification ERROR: event_type=%s payload=%s"
+                     % (event_type, payload))
+            return
+
+        if server.getProjectId() not in self.projects:
+            return
+
+        flavor = server.getFlavor()
+
+        LOG.debug("Notification ERROR (type=%s state=%s): vcpus=%s "
+                  "memory=%s prj_id=%s server_id=%s (error=%s)"
+                  % (event_type, server.getState(), flavor.getVCPUs(),
+                     flavor.getMemory(), server.getProjectId(),
+                     server.getId(), message))
+
+        if not server.getTerminatedAt() and not server.getDeletedAt():
+            try:
+                self.nova_manager.deleteServer(server)
+            except Exception as ex:
+                LOG.error("Cannot delete server id=%r: %s"
+                          % (server.getId(), ex))
+
+        quota = self.projects[server.getProjectId()].getQuota()
+
+        try:
+            quota.release(server)
+        except Exception as ex:
+            LOG.warn("Cannot release server id=%r: %s"
+                     % (server.getId(), ex))
+            LOG.error("Exception has occured", exc_info=1)
 
 
 class Worker(Thread):
@@ -415,7 +491,8 @@ class SchedulerManager(Manager):
 
             self.workers.append(dynamic_worker)
 
-            self.notifications = Notifications(self.projects)
+            self.notifications = Notifications(self.projects,
+                                               self.nova_manager)
 
             target = self.nova_manager.getTarget(topic='notifications',
                                                  exchange="nova")

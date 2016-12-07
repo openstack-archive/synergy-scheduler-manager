@@ -33,7 +33,10 @@ class Server(SynergyObject):
         if not date:
             return None
         elif isinstance(date, basestring):
-            return datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ")
+            try:
+                return datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ")
+            except Exception:
+                return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%f")
         elif isinstance(date, datetime):
             return date
         else:
@@ -129,6 +132,12 @@ class Server(SynergyObject):
 
     def setTerminatedAt(self, terminated_at):
         self.set("terminated_at", self.__getDateTime(terminated_at))
+
+    def getDeletedAt(self):
+        return self.get("deleted_at")
+
+    def setDeletedAt(self, deleted_at):
+        self.set("deleted_at", self.__getDateTime(deleted_at))
 
     def isEphemeral(self):
         return self.get("type") == "ephemeral"

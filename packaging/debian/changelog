@@ -1,3 +1,19 @@
+python-synergy-scheduler-manager (2.2.0) unstable; urgency=low
+
+  * [packaging] make docker aware of PKG_VERSION
+  * Synergy releases in advance the VMs that are going to be destroyed
+  * Queue.updatePriority() takes much time if the queue is large
+  * Add the new clock_skew parameter for KeystoneManager
+  * Invalid input for field/attribute quota_class_set
+  * KeystoneManager.authenticate() uses a wrong domain attribute
+  * Add a backfill_depth parameter
+  * Item readjustment fixed in PriorityQueue
+  * The FairshareManager should not use the Manager.condition var
+  * Fix scheduling when shared quota is disabled
+  * Update changelogs and system package versions
+
+ -- Vincent Llorens <vincent.llorens@cc.in2p3.fr>  Mon, 12 Dec 2016 13:31:29 +0100
+
 python-synergy-scheduler-manager (2.1.0) unstable; urgency=low
 
   * CLI command "synergy usage show" enhanced

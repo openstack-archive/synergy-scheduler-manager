@@ -1,7 +1,7 @@
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 
 Name:          python-synergy-scheduler-manager
-Version:       2.1.0
+Version:       2.2.0
 Release:       1%{?dist}
 Summary:       Advanced scheduling capability for OpenStack.
 Source:        %name-%version.tar.bz2
@@ -49,6 +49,19 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Mon Dec 12 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 2.2.0-1
+- [packaging] make docker aware of PKG_VERSION
+- Synergy releases in advance the VMs that are going to be destroyed
+- Queue.updatePriority() takes much time if the queue is large
+- Add the new clock_skew parameter for KeystoneManager
+- Invalid input for field/attribute quota_class_set
+- KeystoneManager.authenticate() uses a wrong domain attribute
+- Add a backfill_depth parameter
+- Item readjustment fixed in PriorityQueue
+- The FairshareManager should not use the Manager.condition var
+- Fix scheduling when shared quota is disabled
+- Update changelogs and system package versions
+
 * Fri Dec 09 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 2.1.0-1
 - CLI command "synergy usage show" enhanced
 - Clean up oslo imports

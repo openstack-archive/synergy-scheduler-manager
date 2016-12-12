@@ -10,4 +10,4 @@ oslo.serialization
 oslo.versionedobjects
 requests
 sqlalchemy
-synergy-service>=1.2,<1.3
+synergy-service>=1.3,<1.4

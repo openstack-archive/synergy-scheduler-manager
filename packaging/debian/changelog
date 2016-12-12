@@ -1,3 +1,10 @@
+python-synergy-scheduler-manager (2.1.0) unstable; urgency=low
+
+  * CLI command "synergy usage show" enhanced
+  * Clean up oslo imports
+
+ -- Vincent Llorens <vincent.llorens@cc.in2p3.fr>  Fri, 09 Dec 2016 10:04:19 +0100
+
 python-synergy-scheduler-manager (2.0.0ubuntu1) unstable; urgency=low
 
   * Synergy doesn't rely anymore on nova.conf

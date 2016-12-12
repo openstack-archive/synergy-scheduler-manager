@@ -1,6 +1,10 @@
 CHANGES
 =======
 
+2.1.0
+-----
+
+* CLI command "synergy usage show" enhanced
 * Clean up oslo imports
 
 2.0.0

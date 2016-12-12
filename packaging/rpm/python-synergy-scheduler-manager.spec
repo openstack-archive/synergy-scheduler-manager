@@ -1,7 +1,7 @@
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 
 Name:          python-synergy-scheduler-manager
-Version:       2.0.0
+Version:       2.1.0
 Release:       1%{?dist}
 Summary:       Advanced scheduling capability for OpenStack.
 Source:        %name-%version.tar.bz2
@@ -49,6 +49,10 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Fri Dec 09 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 2.1.0-1
+- CLI command "synergy usage show" enhanced
+- Clean up oslo imports
+
 * Wed Nov 09 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 2.0.0-1
 - Synergy doesn't rely anymore on nova.conf
 - Method deserialize() fixed

@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+* fix: update required version of synergy-service
+
+2.2.0
+-----
+
+* Release v2.2.0
 * Release v2.1.0
 * [packaging] make docker aware of PKG_VERSION
 * Synergy releases in advance the VMs that are going to be destroyed

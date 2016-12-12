@@ -1,3 +1,9 @@
+python-synergy-scheduler-manager (2.2.1) unstable; urgency=low
+
+  * fix: update required version of synergy-service
+
+ -- Vincent Llorens <vincent.llorens@cc.in2p3.fr>  Mon, 12 Dec 2016 14:31:54 +0100
+
 python-synergy-scheduler-manager (2.2.0) unstable; urgency=low
 
   * [packaging] make docker aware of PKG_VERSION

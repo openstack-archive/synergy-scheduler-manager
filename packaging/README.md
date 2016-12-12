@@ -15,3 +15,7 @@
   Docker run -i -v /path/to/synergy-scheduler-manager:/tmp/python-synergy-scheduler-manager scheduler-builder-{centos7,ubuntu-14.04}
   ```
   the deb/rpm will be output in `path/to/synergy-scheduler-manager/build`
+
+  You can override the package version that will be set during the packaging
+  process by adding `-e "PKG_VERSION=x.y.z"` to the above command line.
+  Otherwise, the package version will be set to the latest git tag.

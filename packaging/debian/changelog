@@ -1,3 +1,9 @@
+python-synergy-scheduler-manager (2.2.2) unstable; urgency=low
+
+  * Make SchedulerManager handle ERROR notifications
+
+ -- Vincent Llorens <vincent.llorens@cc.in2p3.fr>  Wed, 14 Dec 2016 10:49:24 +0100
+
 python-synergy-scheduler-manager (2.2.1) unstable; urgency=low
 
   * fix: update required version of synergy-service

@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+* Make SchedulerManager handle ERROR notifications
+
+2.2.1
+-----
+
+* Release v2.2.1
 * fix: update required version of synergy-service
 
 2.2.0

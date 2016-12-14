@@ -1,7 +1,7 @@
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 
 Name:          python-synergy-scheduler-manager
-Version:       2.2.1
+Version:       2.2.2
 Release:       1%{?dist}
 Summary:       Advanced scheduling capability for OpenStack.
 Source:        %name-%version.tar.bz2
@@ -49,6 +49,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Wed Dec 14 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 2.2.2-1
+- Make SchedulerManager handle ERROR notifications
+
 * Mon Dec 12 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 2.2.1-1
 - fix: update required version of synergy-service
 

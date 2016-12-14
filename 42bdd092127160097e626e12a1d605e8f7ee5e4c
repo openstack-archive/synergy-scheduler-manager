@@ -1,0 +1,8 @@
+Code-Review+2: Vincent Llorens <vincent.llorens@cc.in2p3.fr>
+Workflow+1: Vincent Llorens <vincent.llorens@cc.in2p3.fr>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 14 Dec 2016 10:07:12 +0000
+Reviewed-on: https://review.openstack.org/410656
+Project: openstack/synergy-scheduler-manager
+Branch: refs/heads/master

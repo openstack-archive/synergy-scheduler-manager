@@ -398,12 +398,23 @@ class NovaManager(Manager):
             cfg.IntOpt("timeout",
                        help="set the http connection timeout",
                        default=60,
+                       required=False),
+            cfg.StrOpt("ssl_ca_file",
+                       help="set the PEM encoded Certificate Authority to "
+                            "use when verifying HTTPs connections",
+                       default=None,
+                       required=False),
+            cfg.StrOpt("ssl_cert_file",
+                       help="set the SSL client certificate (PEM encoded)",
+                       default=None,
                        required=False)
         ]
 
     def setup(self):
         eventlet.monkey_patch(os=False)
 
+        self.ssl_ca_file = CONF.NovaManager.ssl_ca_file
+        self.ssl_cert_file = CONF.NovaManager.ssl_cert_file
         self.timeout = CONF.NovaManager.timeout
 
         if self.getManager("KeystoneManager") is None:
@@ -542,7 +553,10 @@ class NovaManager(Manager):
                    "x-tenant-id": server.getProjectId(),
                    "x-instance-id-signature": digest}
 
-        request = requests.get(url, headers=headers, timeout=self.timeout)
+        request = requests.get(url, headers=headers,
+                               timeout=self.timeout,
+                               verify=self.ssl_ca_file,
+                               cert=self.ssl_cert_file)
 
         if request.status_code != requests.codes.ok:
             if request.status_code == 404:
@@ -989,27 +1003,37 @@ class NovaManager(Manager):
 
         if method == "GET":
             request = requests.get(url, headers=headers,
-                                   params=data, timeout=self.timeout)
+                                   params=data, timeout=self.timeout,
+                                   verify=self.ssl_ca_file,
+                                   cert=self.ssl_cert_file)
         elif method == "POST":
             request = requests.post(url,
                                     headers=headers,
                                     data=json.dumps(data),
-                                    timeout=self.timeout)
+                                    timeout=self.timeout,
+                                    verify=self.ssl_ca_file,
+                                    cert=self.ssl_cert_file)
         elif method == "PUT":
             request = requests.put(url,
                                    headers=headers,
                                    data=json.dumps(data),
-                                   timeout=self.timeout)
+                                   timeout=self.timeout,
+                                   verify=self.ssl_ca_file,
+                                   cert=self.ssl_cert_file)
         elif method == "HEAD":
             request = requests.head(url,
                                     headers=headers,
                                     data=json.dumps(data),
-                                    timeout=self.timeout)
+                                    timeout=self.timeout,
+                                    verify=self.ssl_ca_file,
+                                    cert=self.ssl_cert_file)
         elif method == "DELETE":
             request = requests.delete(url,
                                       headers=headers,
                                       data=json.dumps(data),
-                                      timeout=self.timeout)
+                                      timeout=self.timeout,
+                                      verify=self.ssl_ca_file,
+                                      cert=self.ssl_cert_file)
         else:
             raise Exception("wrong HTTP method: %s" % method)
 

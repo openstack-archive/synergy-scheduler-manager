@@ -78,11 +78,22 @@ class KeystoneManager(Manager):
             cfg.IntOpt("clock_skew",
                        help="set the clock skew (seconds)",
                        default=60,
+                       required=False),
+            cfg.StrOpt("ssl_ca_file",
+                       help="set the PEM encoded Certificate Authority to "
+                            "use when verifying HTTPs connections",
+                       default=None,
+                       required=False),
+            cfg.StrOpt("ssl_cert_file",
+                       help="set the SSL client certificate (PEM encoded)",
+                       default=None,
                        required=False)
         ]
 
     def setup(self):
         self.auth_url = CONF.KeystoneManager.auth_url
+        self.ssl_ca_file = CONF.KeystoneManager.ssl_ca_file
+        self.ssl_cert_file = CONF.KeystoneManager.ssl_cert_file
         self.username = CONF.KeystoneManager.username
         self.password = CONF.KeystoneManager.password
         self.user_domain_name = CONF.KeystoneManager.user_domain_name
@@ -187,7 +198,9 @@ class KeystoneManager(Manager):
         response = requests.post(url=self.auth_url + "/auth/tokens",
                                  headers=headers,
                                  data=json.dumps(data),
-                                 timeout=self.timeout)
+                                 timeout=self.timeout,
+                                 verify=self.ssl_ca_file,
+                                 cert=self.ssl_cert_file)
 
         if response.status_code != requests.codes.ok:
             response.raise_for_status()
@@ -216,7 +229,6 @@ class KeystoneManager(Manager):
             user = User()
             user.setId(info["id"])
             user.setName(info["name"])
-            user.setProjectId(info["tenantId"])
             user.setEnabled(info["enabled"])
 
         return user
@@ -680,27 +692,37 @@ class KeystoneManager(Manager):
             response = requests.get(url,
                                     headers=headers,
                                     params=data,
-                                    timeout=self.timeout)
+                                    timeout=self.timeout,
+                                    verify=self.ssl_ca_file,
+                                    cert=self.ssl_cert_file)
         elif method == "POST":
             response = requests.post(url,
                                      headers=headers,
                                      data=json.dumps(data),
-                                     timeout=self.timeout)
+                                     timeout=self.timeout,
+                                     verify=self.ssl_ca_file,
+                                     cert=self.ssl_cert_file)
         elif method == "PUT":
             response = requests.put(url,
                                     headers=headers,
                                     data=json.dumps(data),
-                                    timeout=self.timeout)
+                                    timeout=self.timeout,
+                                    verify=self.ssl_ca_file,
+                                    cert=self.ssl_cert_file)
         elif method == "HEAD":
             response = requests.head(url,
                                      headers=headers,
                                      data=json.dumps(data),
-                                     timeout=self.timeout)
+                                     timeout=self.timeout,
+                                     verify=self.ssl_ca_file,
+                                     cert=self.ssl_cert_file)
         elif method == "DELETE":
             response = requests.delete(url,
                                        headers=headers,
                                        data=json.dumps(data),
-                                       timeout=self.timeout)
+                                       timeout=self.timeout,
+                                       verify=self.ssl_ca_file,
+                                       cert=self.ssl_cert_file)
         else:
             raise Exception("wrong HTTP method: %s" % method)
 

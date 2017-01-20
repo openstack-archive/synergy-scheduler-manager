@@ -109,6 +109,7 @@ class QuotaManager(Manager):
                     quota.getSize("instances") > 0:
 
                 self.nova_manager.updateQuota(quota, is_class=True)
+
                 quota.setSize("vcpus", -1)
                 quota.setSize("memory", -1)
                 quota.setSize("instances", -1)
@@ -119,10 +120,10 @@ class QuotaManager(Manager):
                 project.getId(), is_class=True)
 
             quota = project.getQuota()
+            quota.setId(project.getId())
             quota.setSize("vcpus", class_quota.getSize("vcpus"))
             quota.setSize("memory", class_quota.getSize("memory"))
             quota.setSize("instances", class_quota.getSize("instances"))
-
             quota.setSize(
                 "vcpus", SharedQuota.getSize("vcpus"), private=False)
             quota.setSize(
@@ -134,11 +135,28 @@ class QuotaManager(Manager):
 
             for server in servers:
                 if server.getState() != "building":
-                    quota.allocate(server)
+                    try:
+                        quota.allocate(server)
+                    except Exception as ex:
+                        flavor = server.getFlavor()
+                        vcpus_size = quota.getSize("vcpus") + flavor.getVCPUs()
+                        mem_size = quota.getSize("memory") + flavor.getMemory()
+
+                        quota.setSize("vcpus", vcpus_size)
+                        quota.setSize("memory", mem_size)
+
+                        self.nova_manager.updateQuota(quota, is_class=True)
+
+                        LOG.warn("private quota autoresized (vcpus=%s, "
+                                 "memory=%s) for project %r (id=%s)"
+                                 % (quota.getSize("vcpus"),
+                                    quota.getSize("memory"),
+                                    project.getName(),
+                                    project.getId()))
+                        quota.allocate(server)
 
             self.projects[project.getId()] = project
         except Exception as ex:
-            LOG.error("Exception has occured", exc_info=1)
             LOG.error(ex)
             raise ex
 
@@ -232,13 +250,35 @@ class QuotaManager(Manager):
             total_memory *= float(ram_ratio)
             total_vcpus *= float(cpu_ratio)
 
-            kprojects = self.keystone_manager.getProjects()
+            kprojects = self.keystone_manager.getProjects(domain_id="default")
 
             for kproject in kprojects:
                 project = self.getProject(kproject.getId())
 
                 if project:
-                    quota = project.getQuota()
+                    quota = self.nova_manager.getQuota(project.getId(),
+                                                       is_class=True)
+                    pquota = project.getQuota()
+                    vcpus_size = quota.getSize("vcpus")
+                    vcpus_usage = pquota.getUsage("vcpus")
+                    mem_size = quota.getSize("memory")
+                    mem_usage = pquota.getUsage("memory")
+
+                    if vcpus_usage > vcpus_size or mem_usage > mem_size:
+                        LOG.info("cannot shrink the private quota for project"
+                                 " %r (id=%s) because the usage of current "
+                                 "quota exceeds the new size (vcpus=%s, "
+                                 "memory=%s)" % (project.getName(),
+                                                 project.getId(),
+                                                 quota.getSize("vcpus"),
+                                                 quota.getSize("memory")))
+                        self.nova_manager.updateQuota(pquota, is_class=True)
+                        quota = pquota
+                    else:
+                        pquota.setSize("vcpus", value=quota.getSize("vcpus"))
+                        pquota.setSize("memory", value=quota.getSize("memory"))
+                        pquota.setSize("instances",
+                                       value=quota.getSize("instances"))
                 else:
                     quota = self.nova_manager.getQuota(kproject.getId())
 
@@ -288,6 +328,5 @@ class QuotaManager(Manager):
                 quota.setSize("vcpus", shared_vcpus, private=False)
                 quota.setSize("memory", shared_memory, private=False)
         except Exception as ex:
-            LOG.error("Exception has occured", exc_info=1)
             LOG.error(ex)
             raise ex

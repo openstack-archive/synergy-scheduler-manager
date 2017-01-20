@@ -35,6 +35,8 @@ class Trust(object):
         self.remaining_uses = data["remaining_uses"]
         self.expires_at = None
         self.keystone_url = None
+        self.ssl_ca_file = None
+        self.ssl_cert_file = None
 
         if data["expires_at"] is not None:
             self.expires_at = datetime.strptime(data["expires_at"],
@@ -88,7 +90,9 @@ class Trust(object):
 
         response = requests.post(url=self.keystone_url + "/auth/tokens",
                                  headers=headers,
-                                 data=json.dumps(data))
+                                 data=json.dumps(data),
+                                 verify=self.ssl_ca_file,
+                                 cert=self.ssl_cert_file)
 
         if response.status_code != requests.codes.ok:
             response.raise_for_status()
@@ -128,19 +132,11 @@ class Trust(object):
         if expires_at is not None:
             data["trust"]["expires_at"] = token.isotime(expires_at, True)
 
-        service = token.getService("keystone")
-        if not service:
-            raise Exception("keystone service not found!")
-
-        endpoint = service.getEndpoint("admin")
-        if not endpoint:
-            raise Exception("keystone endpoint not found!")
-
-        endpoint_url = endpoint.getURL()
-
-        response = requests.post(url=endpoint_url + "/OS-TRUST/trusts",
+        response = requests.post(url=Trust.keystone_url + "/OS-TRUST/trusts",
                                  headers=headers,
-                                 data=json.dumps(data))
+                                 data=json.dumps(data),
+                                 verify=Trust.ssl_ca_file,
+                                 cert=Trust.ssl_cert_file)
 
         if response.status_code != requests.codes.ok:
             response.raise_for_status()
@@ -151,6 +147,8 @@ class Trust(object):
         response = response.json()
 
         trust = Trust(response["trust"])
-        trust.keystone_url = endpoint_url
+        trust.keystone_url = Trust.keystone_url
+        trust.ssl_ca_file = Trust.ssl_ca_file
+        trust.ssl_cert_file = Trust.ssl_cert_file
 
         return trust

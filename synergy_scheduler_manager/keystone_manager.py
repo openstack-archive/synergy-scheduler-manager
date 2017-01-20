@@ -231,14 +231,34 @@ class KeystoneManager(Manager):
             user.setName(info["name"])
             user.setEnabled(info["enabled"])
 
+            if "default_project_id" in info:
+                user.setProjectId(info["default_project_id"])
+            elif "tenantId" in info:
+                user.setProjectId(info["tenantId"])
+
         return user
 
     def getUsers(self, prj_id=None):
+        users = []
+
         if prj_id:
             try:
-                response = self.getResource("tenants/%s/users" % prj_id,
-                                            "GET",
-                                            version="v2.0")
+                data = {"scope.project.id": prj_id}
+                response = self.getResource("role_assignments", "GET", data=data)
+                user_list = {}
+
+                for role in response["role_assignments"]:
+                    user_id = role["user"]["id"]
+
+                    if user_id in user_list:
+                        continue
+
+                    user = self.getUser(user_id)
+                    user.setProjectId(prj_id)
+
+                    user_list[user_id] = user
+
+                users = user_list.values()
             except requests.exceptions.HTTPError as ex:
                 response = ex.response.json()
                 raise Exception("error on retrieving the project's users "
@@ -247,24 +267,19 @@ class KeystoneManager(Manager):
         else:
             try:
                 response = self.getResource("/users", "GET")
+
+                for info in response["users"]:
+                    user = User()
+                    user.setId(info["id"])
+                    user.setName(info["name"])
+                    user.setProjectId(info["tenantId"])
+                    user.setEnabled(info["enabled"])
+
+                    users.append(user)
             except requests.exceptions.HTTPError as ex:
                 response = ex.response.json()
                 raise Exception("error on retrieving the users list: %s"
                                 % response["error"]["message"])
-
-        users = []
-
-        if response:
-            user_info = response["users"]
-
-            for info in user_info:
-                user = User()
-                user.setId(info["id"])
-                user.setName(info["name"])
-                user.setProjectId(info["tenantId"])
-                user.setEnabled(info["enabled"])
-
-                users.append(user)
 
         return users
 

@@ -104,18 +104,8 @@ class KeystoneManager(Manager):
         self.trust_expiration = CONF.KeystoneManager.trust_expiration
         self.clock_skew = CONF.KeystoneManager.clock_skew
         self.token = None
-        self.auth_public_url = None
 
         self.authenticate()
-
-        service = self.getToken().getService("keystone")
-        if not service:
-            raise Exception("keystone service not found!")
-
-        endpoint = service.getEndpoint("public")
-        if not endpoint:
-            raise Exception("keystone endpoint not found!")
-        self.auth_public_url = endpoint.getURL()
 
     def task(self):
         pass
@@ -313,7 +303,7 @@ class KeystoneManager(Manager):
 
         return project
 
-    def getProjects(self, usr_id=None):
+    def getProjects(self, usr_id=None, domain_id=None):
         if usr_id:
             try:
                 response = self.getResource(
@@ -324,8 +314,12 @@ class KeystoneManager(Manager):
                                 "%r): %s" % (usr_id,
                                              response["error"]["message"]))
         else:
+            data = None
+            if domain_id:
+                data = {"domain_id": domain_id}
+
             try:
-                response = self.getResource("/projects", "GET")
+                response = self.getResource("/projects", "GET", data=data)
             except requests.exceptions.HTTPError as ex:
                 response = ex.response.json()
                 raise Exception("error on retrieving the projects list: %s"
@@ -414,7 +408,9 @@ class KeystoneManager(Manager):
                             % (id, response["error"]["message"]))
 
         trust = Trust(response["trust"])
-        trust.keystone_url = self.auth_public_url
+        trust.keystone_url = self.auth_url
+        trust.ssl_ca_file = self.ssl_ca_file
+        trust.ssl_cert_file = self.ssl_cert_file
 
         return trust
 
@@ -430,7 +426,9 @@ class KeystoneManager(Manager):
 
         if response:
             trust = Trust(response["trust"])
-            trust.keystone_url = self.auth_public_url
+            trust.keystone_url = self.auth_url
+            trust.ssl_ca_file = self.ssl_ca_file
+            trust.ssl_cert_file = self.ssl_cert_file
 
         return trust
 
@@ -450,15 +448,16 @@ class KeystoneManager(Manager):
 
     def getTrusts(self, user_id=None, isTrustor=True, token=None):
         url = "/OS-TRUST/trusts"
+        data = None
 
         if user_id:
             if isTrustor:
-                url += "?trustor_user_id=%s" % user_id
+                data = {"trustor_user_id": user_id}
             else:
-                url += "?trustee_user_id=%s" % user_id
+                data = {"trustee_user_id": user_id}
 
         try:
-            response = self.getResource(url, "GET", token=token)
+            response = self.getResource(url, "GET", token=token, data=data)
         except requests.exceptions.HTTPError as ex:
             response = ex.response.json()
             raise Exception("error on retrieving the trust list (id=%r): %s"
@@ -469,7 +468,9 @@ class KeystoneManager(Manager):
         if response:
             for data in response["trusts"]:
                 trust = Trust(data)
-                trust.keystone_url = self.auth_public_url
+                trust.keystone_url = self.auth_url
+                trust.ssl_ca_file = self.ssl_ca_file
+                trust.ssl_cert_file = self.ssl_cert_file
 
                 trusts.append(trust)
 
@@ -670,12 +671,11 @@ class KeystoneManager(Manager):
         if token:
             if token.isExpired():
                 raise Exception("token expired!")
-
-            url = self.auth_public_url
         else:
             self.authenticate()
             token = self.getToken()
-            url = self.auth_url
+
+        url = self.auth_url
 
         if version:
             url = url[:url.rfind("/") + 1] + version

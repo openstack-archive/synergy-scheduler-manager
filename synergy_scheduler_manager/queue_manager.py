@@ -36,6 +36,7 @@ class QueueManager(Manager):
         self.config_opts = [
             cfg.StrOpt("db_connection", help="the DB url", required=True),
             cfg.IntOpt('db_pool_size', default=10, required=False),
+            cfg.IntOpt('db_pool_recycle', default=30, required=False),
             cfg.IntOpt('db_max_overflow', default=5, required=False)
         ]
         self.queue_list = {}
@@ -51,11 +52,13 @@ class QueueManager(Manager):
 
         db_connection = CONF.QueueManager.db_connection
         pool_size = CONF.QueueManager.db_pool_size
+        pool_recycle = CONF.QueueManager.db_pool_recycle
         max_overflow = CONF.QueueManager.db_max_overflow
 
         try:
             self.db_engine = create_engine(db_connection,
                                            pool_size=pool_size,
+                                           pool_recycle=pool_recycle,
                                            max_overflow=max_overflow)
         except Exception as ex:
             LOG.error(ex)

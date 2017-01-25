@@ -316,6 +316,7 @@ class SchedulerManager(Manager):
         super(SchedulerManager, self).__init__("SchedulerManager")
 
         self.config_opts = [
+            cfg.StrOpt("notification_topic", default="notifications"),
             cfg.IntOpt("backfill_depth", default=100),
             cfg.FloatOpt("default_TTL", default=10.0),
             cfg.ListOpt("projects", default=[], help="the projects list"),
@@ -347,6 +348,7 @@ class SchedulerManager(Manager):
         self.fairshare_manager = self.getManager("FairShareManager")
         self.default_TTL = float(CONF.SchedulerManager.default_TTL)
         self.backfill_depth = CONF.SchedulerManager.backfill_depth
+        self.notification_topic = CONF.SchedulerManager.notification_topic
         self.projects = {}
         self.listener = None
         self.exit = False
@@ -494,8 +496,8 @@ class SchedulerManager(Manager):
             self.notifications = Notifications(self.projects,
                                                self.nova_manager)
 
-            target = self.nova_manager.getTarget(topic='notifications',
-                                                 exchange="nova")
+            target = self.nova_manager.getTarget(
+                topic=self.notification_topic, exchange="nova")
 
             self.listener = self.nova_manager.getNotificationListener(
                 targets=[target],

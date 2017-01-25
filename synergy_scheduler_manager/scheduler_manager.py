@@ -418,8 +418,24 @@ class SchedulerManager(Manager):
             raise Exception("command=%r not supported!" % command)
 
     def task(self):
-        if not self.configured:
-            for project in self.keystone_manager.getProjects():
+        if self.configured:
+            for project in self.projects.values():
+                users = self.keystone_manager.getUsers(prj_id=project.getId())
+
+                for user in users:
+                    try:
+                        project.addUser(user)
+                    except Exception:
+                        pass
+        else:
+            domain = self.keystone_manager.getDomains(name="default")
+            if not domain:
+                raise Exception("domain 'default' not found!")
+
+            domain = domain[0]
+            dom_id = domain.getId()
+
+            for project in self.keystone_manager.getProjects(domain_id=dom_id):
                 if project.getName() in CONF.SchedulerManager.projects:
                     CONF.SchedulerManager.projects.remove(project.getName())
                     project.setTTL(self.default_TTL)
@@ -505,16 +521,6 @@ class SchedulerManager(Manager):
 
             self.listener.start()
             self.configured = True
-            return
-
-        for project in self.projects.values():
-            users = self.keystone_manager.getUsers(prj_id=project.getId())
-
-            for user in users:
-                try:
-                    project.addUser(user)
-                except Exception:
-                    pass
 
     def destroy(self):
         for queue_worker in self.workers:

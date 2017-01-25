@@ -250,7 +250,14 @@ class QuotaManager(Manager):
             total_memory *= float(ram_ratio)
             total_vcpus *= float(cpu_ratio)
 
-            kprojects = self.keystone_manager.getProjects(domain_id="default")
+            domain = self.keystone_manager.getDomains(name="default")
+            if not domain:
+                raise Exception("domain 'default' not found!")
+
+            domain = domain[0]
+            dom_id = domain.getId()
+
+            kprojects = self.keystone_manager.getProjects(domain_id=dom_id)
 
             for kproject in kprojects:
                 project = self.getProject(kproject.getId())

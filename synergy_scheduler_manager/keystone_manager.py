@@ -2,6 +2,7 @@ import json
 import logging
 import requests
 
+from common.domain import Domain
 from common.endpoint import Endpoint
 from common.project import Project
 from common.role import Role
@@ -297,6 +298,54 @@ class KeystoneManager(Manager):
                 roles.append(role)
 
         return roles
+
+    def getDomain(self, id):
+        try:
+            response = self.getResource("/domains/%s" % id, "GET")
+        except requests.exceptions.HTTPError as ex:
+            response = ex.response.json()
+            raise Exception(
+                "error on retrieving the domain (id=%r, msg=%s)." %
+                (id, response["error"]["message"]))
+
+        domain = None
+
+        if response:
+            info = response["domain"]
+
+            domain = Domain()
+            domain.setId(info["id"])
+            domain.setName(info["name"])
+            domain.setEnabled(info["enabled"])
+
+        return domain
+
+    def getDomains(self, name=None, enabled=True):
+        try:
+            data = {"enabled": enabled}
+            if name:
+                data["name"] = name
+
+            response = self.getResource("/domains", "GET", data=data)
+        except requests.exceptions.HTTPError as ex:
+            response = ex.response.json()
+            raise Exception("error on retrieving the domains list: %s"
+                            % response["error"]["message"])
+
+        domains = []
+
+        if response:
+            domains_info = response["domains"]
+
+            for info in domains_info:
+                domain = Domain()
+                domain.setId(info["id"])
+                domain.setName(info["name"])
+                domain.setEnabled(info["enabled"])
+
+                domains.append(domain)
+
+        return domains
 
     def getProject(self, id):
         try:

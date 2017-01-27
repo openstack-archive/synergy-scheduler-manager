@@ -45,11 +45,25 @@ class Token(SynergyObject):
         token.setId(id)
 
         data = data["token"]
-        token.setCreation(datetime.strptime(data["issued_at"],
-                                            "%Y-%m-%dT%H:%M:%S.%fZ"))
+        issued_at = None
+        expires_at = None
 
-        token.setExpiration(datetime.strptime(data["expires_at"],
-                                              "%Y-%m-%dT%H:%M:%S.%fZ"))
+        try:
+            issued_at = datetime.strptime(data["issued_at"],
+                                          "%Y-%m-%dT%H:%M:%S.%fZ")
+        except Exception:
+            issued_at = datetime.strptime(data["issued_at"],
+                                          "%Y-%m-%dT%H:%M:%S.%f")
+
+        try:
+            expires_at = datetime.strptime(data["expires_at"],
+                                           "%Y-%m-%dT%H:%M:%S.%fZ")
+        except Exception:
+            expires_at = datetime.strptime(data["expires_at"],
+                                           "%Y-%m-%dT%H:%M:%S.%f")
+
+        token.setCreation(issued_at)
+        token.setExpiration(expires_at)
 
         project = Project()
         project.setId(data["project"]["id"])

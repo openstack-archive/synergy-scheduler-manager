@@ -54,6 +54,12 @@ class Server(SynergyObject):
     def setState(self, state):
         self.set("state", state)
 
+    def getHost(self):
+        return self.get("host")
+
+    def setHost(self, host):
+        self.set("host", host)
+
     def getFlavor(self):
         return self.get("flavor")
 

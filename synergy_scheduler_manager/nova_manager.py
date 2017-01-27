@@ -6,6 +6,8 @@ import hmac
 import json
 import logging
 import oslo_messaging as oslo_msg
+oslo_messaging.exceptions
+
 import requests
 
 from common.block_device import BlockDeviceMapping
@@ -21,8 +23,8 @@ from nova.conductor.rpcapi import ComputeTaskAPI
 from nova.conductor.rpcapi import ConductorAPI
 from nova.objects import base as objects_base
 from oslo_config import cfg
+from oslo_messaging import exceptions as oslo_exceptions
 from oslo_serialization import jsonutils
-from oslo_versionedobjects import base as ovo_base
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from synergy.common.manager import Manager
@@ -218,25 +220,38 @@ class NovaConductorAPI(ConductorAPI):
 
     def object_class_action(self, context, objname, objmethod, objver,
                             args, kwargs):
-        versions = ovo_base.obj_tree_get_versions(objname)
-        return self.object_class_action_versions(context,
-                                                 objname,
-                                                 objmethod,
-                                                 versions,
-                                                 args, kwargs)
+        try:
+            cctxt = self.client.prepare()
+            return cctxt.call(context, 'object_class_action',
+                              objname=objname, objmethod=objmethod,
+                              objver=objver, args=args, kwargs=kwargs)
+        except (oslo_msg.RemoteError,
+                oslo_exceptions.MessagingTimeout,
+                oslo_exceptions.MessageDeliveryFailure):
+            return None
 
     def object_class_action_versions(self, context, objname, objmethod,
                                      object_versions, args, kwargs):
-        cctxt = self.client.prepare()
-        return cctxt.call(context, 'object_class_action_versions',
-                          objname=objname, objmethod=objmethod,
-                          object_versions=object_versions,
-                          args=args, kwargs=kwargs)
+        try:
+            cctxt = self.client.prepare()
+            return cctxt.call(context, 'object_class_action_versions',
+                              objname=objname, objmethod=objmethod,
+                              object_versions=object_versions,
+                              args=args, kwargs=kwargs)
+        except (oslo_msg.RemoteError,
+                oslo_exceptions.MessagingTimeout,
+                oslo_exceptions.MessageDeliveryFailure):
+            return None
 
     def object_action(self, context, objinst, objmethod, args, kwargs):
-        cctxt = self.client.prepare()
-        return cctxt.call(context, 'object_action', objinst=objinst,
-                          objmethod=objmethod, args=args, kwargs=kwargs)
+        try:
+            cctxt = self.client.prepare()
+            return cctxt.call(context, 'object_action', objinst=objinst,
+                              objmethod=objmethod, args=args, kwargs=kwargs)
+        except (oslo_msg.RemoteError,
+                oslo_exceptions.MessagingTimeout,
+                oslo_exceptions.MessageDeliveryFailure):
+            return None
 
     def object_backport_versions(self, context, objinst, object_versions):
         cctxt = self.client.prepare()
@@ -267,11 +282,8 @@ class NovaConductorComputeAPI(ComputeTaskAPI):
                         admin_password, injected_files, requested_networks,
                         security_groups, block_device_mapping=None,
                         legacy_bdm=True):
-        # token = self.keystone_manager.validateToken(context["auth_token"])
-
         for instance in instances:
             try:
-
                 request = Request.build(context, instance, image,
                                         filter_properties, admin_password,
                                         injected_files, requested_networks,
@@ -801,7 +813,7 @@ class NovaManager(Manager):
         try:
             response_data = self.getResource(url, "POST", data)
         except requests.exceptions.HTTPError as ex:
-            raise Exception("error on starting the server info (id=%r)"
+            raise Exception("error on starting the server %s"
                             ": %s" % (id, ex.response.json()))
 
         if response_data:

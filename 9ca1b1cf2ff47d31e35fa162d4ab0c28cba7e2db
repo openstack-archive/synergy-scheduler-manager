@@ -1,0 +1,9 @@
+Code-Review+2: Lisa Zangrando <lisa.zangrando@pd.infn.it>
+Workflow+1: Lisa Zangrando <lisa.zangrando@pd.infn.it>
+Code-Review+1: Vincent Llorens <vincent.llorens@cc.in2p3.fr>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 30 Jan 2017 13:48:53 +0000
+Reviewed-on: https://review.openstack.org/426761
+Project: openstack/synergy-scheduler-manager
+Branch: refs/heads/master

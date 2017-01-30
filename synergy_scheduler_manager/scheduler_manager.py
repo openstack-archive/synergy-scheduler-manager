@@ -87,9 +87,6 @@ class Notifications(object):
             return
 
         state = payload["state"]
-        if state == "error":
-            LOG.info("Notification INFO: event_type=%s payload=%s"
-                     % (event_type, payload))
 
         event_types = ["compute.instance.create.end",
                        "compute.instance.delete.end",

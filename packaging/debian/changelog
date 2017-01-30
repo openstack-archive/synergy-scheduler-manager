@@ -1,3 +1,22 @@
+python-synergy-scheduler-manager (2.3.0) unstable; urgency=low
+
+  * Update of the link to the Synergy documentation
+  * Fix a bug related to NUMA topology
+  * Removed logging message
+  * Time data does not match format '%Y-%m-%dT%H:%M:%S.%fZ'
+  * Retry mechanism improved and fixed
+  * Add support for Keystone domains
+  * Heat and Synergy interfere on the management of the users trust
+  * Synergy and Ceilometer compete for consuming AMQP notifications
+  * Add support for the automatic recycle of DB connections
+  * Enable SSL for OpenStack Trust
+  * Add support for AMQP HA to NovaManager
+  * Use API v3 for KeystoneManager.getUsers()
+  * QuotaManager: private quota shrinking must not be always allowed
+  * NovaManager and KeystoneManager are not SSL-enabled
+
+ -- Ervin Konomi <ervin.konomi@pd.infn.it>  Mon, 30 Jan 2017 16:09:56 +0100
+
 python-synergy-scheduler-manager (2.2.2) unstable; urgency=low
 
   * Make SchedulerManager handle ERROR notifications

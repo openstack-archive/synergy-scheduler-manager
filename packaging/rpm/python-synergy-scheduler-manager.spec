@@ -1,7 +1,7 @@
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 
 Name:          python-synergy-scheduler-manager
-Version:       2.2.2
+Version:       2.3.0
 Release:       1%{?dist}
 Summary:       Advanced scheduling capability for OpenStack.
 Source:        %name-%version.tar.bz2
@@ -49,6 +49,22 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Mon Jan 30 2017 Ervin Konomi <ervin.konomi@pd.infn.it> - 2.3.0-1
+- Update of the link to the Synergy documentation
+- Fix a bug related to NUMA topology
+- Removed logging message
+- Time data does not match format '%Y-%m-%dT%H:%M:%S.%fZ'
+- Retry mechanism improved and fixed
+- Add support for Keystone domains
+- Heat and Synergy interfere on the management of the users trust
+- Synergy and Ceilometer compete for consuming AMQP notifications
+- Add support for the automatic recycle of DB connections
+- Enable SSL for OpenStack Trust
+- Add support for AMQP HA to NovaManager
+- Use API v3 for KeystoneManager.getUsers()
+- QuotaManager: private quota shrinking must not be always allowed
+- NovaManager and KeystoneManager are not SSL-enabled
+
 * Wed Dec 14 2016 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 2.2.2-1
 - Make SchedulerManager handle ERROR notifications
 

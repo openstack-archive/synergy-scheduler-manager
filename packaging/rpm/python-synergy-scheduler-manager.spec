@@ -41,11 +41,13 @@ schedulers.
 %install
 rm -rf $RPM_BUILD_ROOT
 %{__python} setup.py install -O1 --skip-build --root $RPM_BUILD_ROOT
+install -D -m0644 config/synergy_scheduler.conf       %{buildroot}%{_sysconfdir}/synergy/synergy_scheduler.conf
 
 
 %files
 %doc README.rst
 %{python_sitelib}/*
+%config(noreplace) %{_sysconfdir}/synergy/synergy_scheduler.conf
 
 
 %changelog

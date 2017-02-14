@@ -220,7 +220,7 @@ class Worker(Thread):
                         continue
                 except Exception as ex:
                     LOG.warn("the server %s is not anymore available!"
-                             "(reason=%s)" % (self.name, server_id, ex))
+                             "(reason=%s)" % (server_id, ex))
                     self.queue.deleteItem(queue_item)
 
                     continue
@@ -243,8 +243,7 @@ class Worker(Thread):
                         context["user_id"] = token.getUser().getId()
                     except Exception as ex:
                         LOG.error("error on getting the token for server "
-                                  "%s (reason=%s)"
-                                  % (self.name, server.getId(), ex))
+                                  "%s (reason=%s)" % (server.getId(), ex))
                         raise ex
 
                     try:
@@ -256,7 +255,7 @@ class Worker(Thread):
                         found = True
                     except Exception as ex:
                         LOG.error("error on building the server %s (reason=%s)"
-                                  % (self.name, server.getId(), ex))
+                                  % (server.getId(), ex))
 
                     if found:
                         self.queue.deleteItem(queue_item)

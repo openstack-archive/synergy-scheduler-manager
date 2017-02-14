@@ -1,5 +1,4 @@
 import common.utils as utils
-import ConfigParser
 import eventlet
 import hashlib
 import hmac
@@ -15,11 +14,6 @@ from common.hypervisor import Hypervisor
 from common.quota import Quota
 from common.request import Request
 from common.server import Server
-from nova.baserpc import BaseAPI
-from nova.compute.rpcapi import ComputeAPI
-from nova.conductor.rpcapi import ComputeTaskAPI
-from nova.conductor.rpcapi import ConductorAPI
-from nova.objects import base as objects_base
 from oslo_config import cfg
 from oslo_messaging import exceptions as oslo_exceptions
 from oslo_serialization import jsonutils
@@ -48,13 +42,14 @@ permissions and limitations under the License."""
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
-CONFIG = ConfigParser.SafeConfigParser()
 
 
 class MessagingAPI(object):
 
     def __init__(self, amqp_backend, amqp_user,
                  amqp_password, amqp_hosts, amqp_virt_host):
+        super(MessagingAPI, self).__init__()
+
         oslo_msg.set_transport_defaults(control_exchange="nova")
 
         transport_hosts = self._createTransportHosts(amqp_user,
@@ -134,18 +129,14 @@ class MessagingAPI(object):
                                                   executor="eventlet")
 
 
-class NovaBaseRPCAPI(BaseAPI):
+class NovaBaseAPI(object):
 
     def __init__(self, topic, msg):
-        self.target = msg.getTarget(topic=None,
-                                    namespace="baseapi",
-                                    version="1.1")
-
-        target_synergy = msg.getTarget(topic=topic + "_synergy",
-                                       namespace="baseapi",
-                                       version="1.0")
-
-        self.client = msg.getRPCClient(target=target_synergy, version_cap=None)
+        super(NovaBaseAPI, self).__init__()
+        target = msg.getTarget(topic=topic,
+                               namespace="baseapi",
+                               version='1.0')
+        self.client = msg.getRPCClient(target=target, version_cap=None)
 
     def ping(self, context, arg, timeout=None):
         try:
@@ -161,9 +152,34 @@ class NovaBaseRPCAPI(BaseAPI):
         return cctxt.call(context, 'get_backdoor_port')
 
 
-class NovaComputeAPI(ComputeAPI):
+class NovaBaseRPCAPI(object):
 
     def __init__(self, topic, msg):
+        super(NovaBaseRPCAPI, self).__init__()
+
+        self.target = msg.getTarget(topic=None,
+                                    namespace="baseapi",
+                                    version="1.0")
+
+        target_synergy = msg.getTarget(topic=topic + "_synergy",
+                                       namespace="baseapi",
+                                       version="1.0")
+
+        self.client = msg.getRPCClient(target=target_synergy, version_cap=None)
+
+    def ping(self, context, arg):
+        resp = {'service': self.service_name, 'arg': arg}
+        return jsonutils.to_primitive(resp)
+
+    def get_backdoor_port(self, context):
+        return self.backdoor_port
+
+
+class NovaComputeAPI(object):
+
+    def __init__(self, topic, msg):
+        super(NovaComputeAPI, self).__init__()
+
         self.target = msg.getTarget(topic=topic, version="4.0")
         self.client = msg.getRPCClient(target=msg.getTarget(topic=topic))
 
@@ -197,14 +213,10 @@ class NovaComputeAPI(ComputeAPI):
                    limits=limits)
 
 
-class NovaConductorAPI(ConductorAPI):
+class NovaConductorAPI(object):
 
     def __init__(self, topic, msg):
-        report_interval = cfg.IntOpt("report_interval",
-                                     default=10,
-                                     help="Seconds between nodes reporting "
-                                          "state to datastore")
-        CONF.register_opt(report_interval)
+        super(NovaConductorAPI, self).__init__()
 
         self.target = msg.getTarget(topic=topic, version="3.0")
 
@@ -257,15 +269,13 @@ class NovaConductorAPI(ConductorAPI):
                           object_versions=object_versions)
 
 
-class NovaConductorComputeAPI(ComputeTaskAPI):
+class NovaConductorComputeAPI(object):
 
     def __init__(self, topic, scheduler_manager, keystone_manager, msg):
         self.topic = topic
         self.scheduler_manager = scheduler_manager
         self.keystone_manager = keystone_manager
         self.messagingAPI = msg
-        serializer = objects_base.NovaObjectSerializer()
-
         self.target = self.messagingAPI.getTarget(topic=topic,
                                                   namespace="compute_task",
                                                   version="1.11")
@@ -273,8 +283,7 @@ class NovaConductorComputeAPI(ComputeTaskAPI):
         self.client = self.messagingAPI.getRPCClient(
             target=oslo_msg.Target(topic=topic + "_synergy",
                                    namespace="compute_task",
-                                   version="1.10"),
-            serializer=serializer)
+                                   version="1.10"))
 
     def build_instances(self, context, instances, image, filter_properties,
                         admin_password, injected_files, requested_networks,
@@ -297,38 +306,16 @@ class NovaConductorComputeAPI(ComputeTaskAPI):
                        admin_password, injected_files, requested_networks,
                        security_groups, block_device_mapping=None,
                        legacy_bdm=True):
-        try:
-            version = '1.10'
-            if not self.client.can_send_version(version):
-                version = '1.9'
-                if 'instance_type' in filter_properties:
-                    flavor = filter_properties['instance_type']
-                    flavor_p = objects_base.obj_to_primitive(flavor)
-                    filter_properties = dict(filter_properties,
-                                             instance_type=flavor_p)
-            kw = {'instances': [instance],
-                  'image': image,
-                  'filter_properties': filter_properties,
-                  'admin_password': admin_password,
-                  'injected_files': injected_files,
-                  'requested_networks': requested_networks,
-                  'security_groups': security_groups}
+        kw = {'instances': [instance],
+              'image': image,
+              'filter_properties': filter_properties,
+              'admin_password': admin_password,
+              'injected_files': injected_files,
+              'requested_networks': requested_networks,
+              'security_groups': security_groups}
 
-            if not self.client.can_send_version(version):
-                version = '1.8'
-                kw['requested_networks'] = kw['requested_networks'].as_tuples()
-            if not self.client.can_send_version('1.7'):
-                version = '1.5'
-                bdm_p = objects_base.obj_to_primitive(block_device_mapping)
-                kw.update({'block_device_mapping': bdm_p,
-                           'legacy_bdm': legacy_bdm})
-
-            cctxt = self.client.prepare(version_cap=version)
-            cctxt.cast(context, 'build_instances', **kw)
-        except Exception as ex:
-            LOG.error("Exception has occured", exc_info=1)
-            LOG.error(ex)
-            raise ex
+        cctxt = self.client.prepare()
+        cctxt.cast(context, 'build_instances', **kw)
 
     def migrate_server(self, context, instance, scheduler_hint, live, rebuild,
                        flavor, block_migration, disk_over_commit,
@@ -343,22 +330,7 @@ class NovaConductorComputeAPI(ComputeTaskAPI):
               'request_spec': request_spec,
               }
 
-        version = '1.13'
-        if not self.client.can_send_version(version):
-            del kw['request_spec']
-            version = '1.11'
-        if not self.client.can_send_version(version):
-            del kw['clean_shutdown']
-            version = '1.10'
-        if not self.client.can_send_version(version):
-            kw['flavor'] = objects_base.obj_to_primitive(flavor)
-            version = '1.6'
-        if not self.client.can_send_version(version):
-            kw['instance'] = jsonutils.to_primitive(
-                objects_base.obj_to_primitive(instance))
-            version = '1.4'
-
-        cctxt = self.client.prepare(version=version)
+        cctxt = self.client.prepare()
         return cctxt.call(context, 'migrate_server', **kw)
 
     def unshelve_instance(self, context, instance):
@@ -513,6 +485,9 @@ class NovaManager(Manager):
                                              amqp_password, amqp_hosts,
                                              amqp_virt_host)
 
+            self.novaBaseAPI = NovaBaseAPI(conductor_topic,
+                                           self.messagingAPI)
+
             self.novaBaseRPCAPI = NovaBaseRPCAPI(conductor_topic,
                                                  self.messagingAPI)
 
@@ -528,7 +503,8 @@ class NovaManager(Manager):
             self.conductor_rpc = self.messagingAPI.getRPCServer(
                 target=self.messagingAPI.getTarget(topic=conductor_topic,
                                                    server=host),
-                endpoints=[self.novaBaseRPCAPI,
+                endpoints=[self.novaBaseAPI,
+                           self.novaBaseRPCAPI,
                            self.novaConductorAPI,
                            self.novaConductorComputeAPI])
 

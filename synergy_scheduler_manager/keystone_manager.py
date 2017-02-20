@@ -1,5 +1,4 @@
 import json
-import logging
 import requests
 
 from common.domain import Domain
@@ -36,7 +35,6 @@ permissions and limitations under the License."""
 
 
 CONF = cfg.CONF
-LOG = logging.getLogger(__name__)
 
 
 class KeystoneManager(Manager):

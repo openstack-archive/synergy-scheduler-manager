@@ -201,25 +201,15 @@ class FairShareManager(Manager):
                     prj_id, from_date, to_date)
 
                 for user_id, usage_rec in usages.items():
-                    user = project.getUser(id=user_id)
-
-                    if not user:
-                        user = User()
-                        user.setId(user_id)
-                        user.getShare().setValue(default_share)
-
-                        data = user.getData()
-                        data["vcpus"] = float(0)
-                        data["memory"] = float(0)
-
-                        project.addUser(user)
-
                     decay_vcpus = decay * usage_rec["vcpus"]
                     decay_memory = decay * usage_rec["memory"]
 
-                    data = user.getData()
-                    data["vcpus"] += decay_vcpus
-                    data["memory"] += decay_memory
+                    user = project.getUser(id=user_id)
+
+                    if user:
+                       data = user.getData()
+                       data["vcpus"] += decay_vcpus
+                       data["memory"] += decay_memory
 
                     total_vcpus += decay_vcpus
                     total_memory += decay_memory

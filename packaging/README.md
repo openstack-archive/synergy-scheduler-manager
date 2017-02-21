@@ -12,7 +12,7 @@
 2. run the image
 
   ```shell
-  Docker run -i -v /path/to/synergy-scheduler-manager:/tmp/python-synergy-scheduler-manager scheduler-builder-{centos7,ubuntu-14.04}
+  Docker run -i -v /path/to/synergy-scheduler-manager:/tmp/synergy scheduler-builder-{centos7,ubuntu-14.04}
   ```
   the deb/rpm will be output in `path/to/synergy-scheduler-manager/build`
 

@@ -11,7 +11,7 @@ RUN apt-get update \
                           python-all \
                           python-pbr \
                           python-setuptools
-RUN mkdir /tmp/python-synergy-scheduler-manager
+RUN mkdir /tmp/synergy
 RUN useradd -m -p pkger pkger
 USER pkger
 COPY build.sh /home/pkger/build.sh

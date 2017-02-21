@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e -x
 
-PKG_DIR=/tmp/python-synergy-scheduler-manager
+PKG_DIR=/tmp/synergy
 
 
 function copy_source() {

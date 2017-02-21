@@ -2,7 +2,7 @@
 set -e -x
 
 RPMBUILD=/home/pkger/rpmbuild
-PKG_DIR=/tmp/python-synergy-scheduler-manager
+PKG_DIR=/tmp/synergy
 
 
 function get_version() {

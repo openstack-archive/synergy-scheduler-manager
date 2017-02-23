@@ -70,5 +70,8 @@ class Project(SynergyObject):
     def isEnabled(self):
         return self.get("enabled")
 
+    def removeUser(self, user_id):
+        return self.get("users").pop(user_id, None)
+
     def setEnabled(self, enabled=True):
         self.set("enabled", enabled)

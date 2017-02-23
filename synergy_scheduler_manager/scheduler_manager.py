@@ -385,108 +385,90 @@ class SchedulerManager(Manager):
 
     def task(self):
         if self.configured:
-            for project in self.projects.values():
-                users = self.keystone_manager.getUsers(prj_id=project.getId())
+            return
 
-                for user in users:
-                    try:
-                        project.addUser(user)
-                    except Exception:
-                        pass
-        else:
-            domain = self.keystone_manager.getDomains(name="default")
-            if not domain:
-                raise Exception("domain'default' not found!")
+        domain = self.keystone_manager.getDomains(name="default")
+        if not domain:
+            raise Exception("domain 'default' not found!")
 
-            domain = domain[0]
-            dom_id = domain.getId()
+        domain = domain[0]
+        dom_id = domain.getId()
 
-            for project in self.keystone_manager.getProjects(domain_id=dom_id):
-                if project.getName() in CONF.SchedulerManager.projects:
-                    CONF.SchedulerManager.projects.remove(project.getName())
-                    project.setTTL(self.default_TTL)
+        for project in self.keystone_manager.getProjects(domain_id=dom_id):
+            if project.getName() in CONF.SchedulerManager.projects:
+                CONF.SchedulerManager.projects.remove(project.getName())
+                project.setTTL(self.default_TTL)
 
-                    try:
-                        users = self.keystone_manager.getUsers(
-                            prj_id=project.getId())
+                self.projects[project.getName()] = project
+            else:
+                quota = self.nova_manager.getQuota(project.getId())
 
-                        for user in users:
-                            project.addUser(user)
-                    except Exception as ex:
-                        LOG.error("Exception has occured", exc_info=1)
-                        LOG.error(ex)
+                if quota.getSize("vcpus") <= -1 and \
+                    quota.getSize("memory") <= -1 and \
+                        quota.getSize("instances") <= -1:
 
-                    self.projects[project.getName()] = project
-                else:
-                    quota = self.nova_manager.getQuota(project.getId())
+                    qc = self.nova_manager.getQuota(project.getId(),
+                                                    is_class=True)
 
-                    if quota.getSize("vcpus") <= -1 and \
-                        quota.getSize("memory") <= -1 and \
-                            quota.getSize("instances") <= -1:
+                    self.nova_manager.updateQuota(qc)
 
-                        qc = self.nova_manager.getQuota(project.getId(),
-                                                        is_class=True)
+        if len(CONF.SchedulerManager.projects) > 0:
+            raise Exception("projects %s not found, please check the syn"
+                            "ergy.conf" % CONF.SchedulerManager.projects)
 
-                        self.nova_manager.updateQuota(qc)
+        self.quota_manager.updateSharedQuota()
 
-            if len(CONF.SchedulerManager.projects) > 0:
-                raise Exception("projects %s not found, please check the syn"
-                                "ergy.conf" % CONF.SchedulerManager.projects)
+        for prj_ttl in CONF.SchedulerManager.TTLs:
+            prj_name, TTL = self.parseAttribute(prj_ttl)
+            self.projects[prj_name].setTTL(TTL)
 
-            self.quota_manager.updateSharedQuota()
+        for prj_share in CONF.SchedulerManager.shares:
+            prj_name, share_value = self.parseAttribute(prj_share)
+            p_share = self.projects[prj_name].getShare()
+            p_share.setValue(share_value)
 
-            for prj_ttl in CONF.SchedulerManager.TTLs:
-                prj_name, TTL = self.parseAttribute(prj_ttl)
-                self.projects[prj_name].setTTL(TTL)
+        for prj_name, project in self.projects.items():
+            del self.projects[prj_name]
+            self.projects[project.getId()] = project
 
-            for prj_share in CONF.SchedulerManager.shares:
-                prj_name, share_value = self.parseAttribute(prj_share)
-                p_share = self.projects[prj_name].getShare()
-                p_share.setValue(share_value)
+            self.quota_manager.addProject(project)
+            self.fairshare_manager.addProject(project)
 
-            for prj_name, project in self.projects.items():
-                del self.projects[prj_name]
-                self.projects[project.getId()] = project
+        self.quota_manager.updateSharedQuota()
+        self.fairshare_manager.checkUsers()
+        self.fairshare_manager.calculateFairShare()
 
-                self.quota_manager.addProject(project)
+        try:
+            self.dynamic_queue = self.queue_manager.createQueue("DYNAMIC")
+        except Exception as ex:
+            LOG.error("Exception has occured", exc_info=1)
+            LOG.error(ex)
 
-                self.fairshare_manager.addProject(project)
+        self.dynamic_queue = self.queue_manager.getQueue("DYNAMIC")
 
-            self.quota_manager.updateSharedQuota()
-            self.fairshare_manager.calculateFairShare()
+        dynamic_worker = Worker("DYNAMIC",
+                                self.dynamic_queue,
+                                self.projects,
+                                self.nova_manager,
+                                self.keystone_manager,
+                                self.backfill_depth)
+        dynamic_worker.start()
 
-            try:
-                self.dynamic_queue = self.queue_manager.createQueue("DYNAMIC")
-            except Exception as ex:
-                LOG.error("Exception has occured", exc_info=1)
-                LOG.error(ex)
+        self.workers.append(dynamic_worker)
 
-            self.dynamic_queue = self.queue_manager.getQueue("DYNAMIC")
+        self.notifications = Notifications(self.projects, self.nova_manager)
 
-            dynamic_worker = Worker("DYNAMIC",
-                                    self.dynamic_queue,
-                                    self.projects,
-                                    self.nova_manager,
-                                    self.keystone_manager,
-                                    self.backfill_depth)
-            dynamic_worker.start()
+        target = self.nova_manager.getTarget(topic=self.notification_topic,
+                                             exchange="nova")
 
-            self.workers.append(dynamic_worker)
+        self.listener = self.nova_manager.getNotificationListener(
+            targets=[target],
+            endpoints=[self.notifications])
 
-            self.notifications = Notifications(self.projects,
-                                               self.nova_manager)
+        self.quota_manager.deleteExpiredServers()
 
-            target = self.nova_manager.getTarget(
-                topic=self.notification_topic, exchange="nova")
-
-            self.listener = self.nova_manager.getNotificationListener(
-                targets=[target],
-                endpoints=[self.notifications])
-
-            self.quota_manager.deleteExpiredServers()
-
-            self.listener.start()
-            self.configured = True
+        self.listener.start()
+        self.configured = True
 
     def destroy(self):
         for queue_worker in self.workers:

@@ -109,6 +109,7 @@ class FairShareManager(Manager):
     def task(self):
         with self.fs_condition:
             try:
+                self.checkUsers()
                 self.calculateFairShare()
             except Exception as ex:
                 LOG.error(ex)
@@ -147,7 +148,7 @@ class FairShareManager(Manager):
 
     def addProject(self, project):
         if self.projects.get(project.getId(), None):
-            raise Exception("project %r already exists!" % (project.getId()))
+            raise Exception("project %s already exists!" % (project.getId()))
 
         prj_share = project.getShare()
         if prj_share.getValue() == 0:
@@ -169,6 +170,42 @@ class FairShareManager(Manager):
             with self.fs_condition:
                 del self.projects[prj_id]
                 self.fs_condition.notifyAll()
+
+    def checkUsers(self):
+        if not self.projects:
+            return
+
+        for project in self.projects.values():
+            k_users = self.keystone_manager.getUsers(prj_id=project.getId())
+            k_users_ids = [user.getId() for user in k_users]
+
+            p_users = project.getUsers()
+            p_users_ids = [user.getId() for user in p_users]
+
+            new_user_ids = list(set(k_users_ids) - set(p_users_ids))
+
+            deleted_user_ids = list(set(p_users_ids) - set(k_users_ids))
+            for id in deleted_user_ids:
+                LOG.info("deleting user %s" % id)
+                project.removeUser(id)
+
+            for user in k_users:
+                if user.getId() in new_user_ids:
+                    LOG.info("found new user %s" % user.getName())
+                    date = datetime.utcnow()
+
+                    data = user.getData()
+                    data["vcpus"] = float(0)
+                    data["memory"] = float(0)
+                    data["actual_memory"] = float(0)
+                    data["actual_vcpus"] = float(0)
+                    data["time_window_from_date"] = date
+                    data["time_window_to_date"] = date
+
+                    try:
+                        project.addUser(user)
+                    except Exception:
+                        pass
 
     def calculateFairShare(self):
         if not self.projects:

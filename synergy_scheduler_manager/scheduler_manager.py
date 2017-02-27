@@ -137,6 +137,12 @@ class Notifications(object):
                         LOG.error("cannot delete server %s: %s"
                                   % (server_id, ex))
 
+                try:
+                    quota.release(server)
+                except Exception as ex:
+                        LOG.warn("cannot release server %s "
+                                 "(reason=%s)" % (server_id, ex))
+
     def warn(self, ctxt, publisher_id, event_type, payload, metadata):
         LOG.debug("Notification WARN: event_type=%s, payload=%s metadata=%s"
                   % (event_type, payload, metadata))

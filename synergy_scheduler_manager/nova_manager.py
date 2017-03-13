@@ -243,6 +243,10 @@ class NovaManager(Manager):
                        help="the amqp virtual host",
                        default="/",
                        required=False),
+            cfg.StrOpt("synergy_topic",
+                       help="the Synergy topic",
+                       default="synergy",
+                       required=False),
             cfg.StrOpt("conductor_topic",
                        help="the conductor topic",
                        default="conductor",
@@ -324,9 +328,9 @@ class NovaManager(Manager):
 
         host = self.getParameter("host")
 
-        conductor_topic = self.getParameter("conductor_topic")
+        synergy_topic = self.getParameter("synergy_topic")
 
-        synergy_topic = conductor_topic + "_synergy"
+        conductor_topic = self.getParameter("conductor_topic")
 
         self.getParameter("metadata_proxy_shared_secret", fallback=True)
 

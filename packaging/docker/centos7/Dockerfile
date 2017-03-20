@@ -1,6 +1,6 @@
 FROM centos:7
 MAINTAINER Vincent Llorens <vincent.llorens@cc.in2p3.fr>
-RUN yum install -y centos-release-openstack-liberty \
+RUN yum install -y centos-release-openstack-newton \
                    git-core \
                    rpm-build \
                    python-devel \

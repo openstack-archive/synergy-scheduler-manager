@@ -1,7 +1,7 @@
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 
 Name:          python-synergy-scheduler-manager
-Version:       2.3.0
+Version:       2.4.0
 Release:       1%{?dist}
 Summary:       Advanced scheduling capability for OpenStack.
 Source:        %name-%version.tar.bz2
@@ -51,6 +51,17 @@ install -D -m0644 config/synergy_scheduler.conf       %{buildroot}%{_sysconfdir}
 
 
 %changelog
+* Mon Mar 20 2017 Ervin Konomi <ervin.konomi@pd.infn.it> - 2.4.0-1
+- Add new "synergy_topic" parameter
+- Fix a possible shared quota consistency issue
+- Fix the bug concerning the user which is still showed after deletion
+- simplify packaging with docker
+- Fix the share percentage
+- Remove unused logging import
+- Fix the error: Arguments already parsed
+- Fix the TypeError: not all arguments converted during string formatting
+- Added configuration file
+
 * Mon Jan 30 2017 Ervin Konomi <ervin.konomi@pd.infn.it> - 2.3.0-1
 - Update of the link to the Synergy documentation
 - Fix a bug related to NUMA topology

@@ -1,6 +1,20 @@
 CHANGES
 =======
 
+* Add new "synergy_topic" parameter
+* Fix a possible shared quota consistency issue
+* Fix the bug concerning the user which is still showed after deletion
+* simplify packaging with docker
+* Fix the share percentage
+* Remove unused logging import
+* Fix the error: Arguments already parsed
+* Fix the TypeError: not all arguments converted during string formatting
+* Added configuration file
+
+2.3.0
+-----
+
+* Release v2.3.0
 * Update of the link to the Synergy documentation
 * Fix a bug related to NUMA topology
 * Removed logging message

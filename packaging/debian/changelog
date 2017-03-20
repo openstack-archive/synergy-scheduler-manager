@@ -1,3 +1,17 @@
+python-synergy-scheduler-manager (2.4.0) unstable; urgency=low
+
+  * Add new "synergy_topic" parameter
+  * Fix a possible shared quota consistency issue
+  * Fix the bug concerning the user which is still showed after deletion
+  * simplify packaging with docker
+  * Fix the share percentage
+  * Remove unused logging import
+  * Fix the error: Arguments already parsed
+  * Fix the TypeError: not all arguments converted during string formatting
+  * Added configuration file
+
+ -- Ervin Konomi <ervin.konomi@pd.infn.it>  Mon, 20 Mar 2017 12:17:40 +0100
+
 python-synergy-scheduler-manager (2.3.0) unstable; urgency=low
 
   * Update of the link to the Synergy documentation

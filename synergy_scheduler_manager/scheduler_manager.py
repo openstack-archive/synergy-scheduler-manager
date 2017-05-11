@@ -117,8 +117,7 @@ class Notifications(object):
         else:
             quota = self.projects[server.getProjectId()].getQuota()
 
-            if event_type == "compute.instance.delete.end" and \
-                    state == "deleted":
+            if event_type == "compute.instance.delete.end":
                 LOG.info("the server %s has been deleted on host %s"
                          % (server_id, host))
                 try:

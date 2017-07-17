@@ -106,5 +106,5 @@ class AMQP(object):
         return oslo_msg.get_notification_listener(self.TRANSPORT,
                                                   targets,
                                                   endpoints,
-                                                  allow_requeue=True,
+                                                  allow_requeue=False,
                                                   executor="eventlet")

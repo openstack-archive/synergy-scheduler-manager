@@ -4,6 +4,7 @@ import logging
 from common.quota import SharedQuota
 from oslo_config import cfg
 from synergy.common.manager import Manager
+from synergy.exception import SynergyError
 
 
 __author__ = "Lisa Zangrando"
@@ -39,152 +40,143 @@ class QuotaManager(Manager):
         self.projects = {}
 
         if self.getManager("NovaManager") is None:
-            raise Exception("NovaManager not found!")
+            raise SynergyError("NovaManager not found!")
 
         if self.getManager("KeystoneManager") is None:
-            raise Exception("KeystoneManager not found!")
+            raise SynergyError("KeystoneManager not found!")
+
+        if self.getManager("ProjectManager") is None:
+            raise SynergyError("ProjectManager not found!")
 
         self.nova_manager = self.getManager("NovaManager")
         self.keystone_manager = self.getManager("KeystoneManager")
-        self.listener = None
+        self.project_manager = self.getManager("ProjectManager")
 
     def destroy(self):
         LOG.info("destroy invoked!")
         SharedQuota.disable()
 
     def execute(self, command, *args, **kargs):
-        if command == "show":
-            prj_id = kargs.get("project_id", None)
-            prj_name = kargs.get("project_name", None)
-            all_projects = kargs.get("all_projects", None)
+        if command == "GET_PRIVATE_QUOTA":
+            prj_id = kargs.get("id", None)
+            prj_name = kargs.get("name", None)
 
-            if prj_id:
-                project = self.projects.get(prj_id, None)
-
+            project = self.project_manager.getProject(prj_id, prj_name)
+            if project:
+                return project.getQuota()
+            else:
+                raise SynergyError("project not found!")
                 if project:
                     return project
-
-                raise Exception("project (id=%r) not found!" % prj_id)
-            elif prj_name:
-                for project in self.projects.values():
-                    if prj_name == project.getName():
-                        return project
-
-                raise Exception("project (name=%r) not found!" % prj_name)
-            elif all_projects:
-                return self.projects.values()
-            else:
-                return SharedQuota()
         elif command == "GET_SHARED_QUOTA":
             return SharedQuota()
-        elif command == "GET_PROJECTS":
-            return self.projects.values()
-        elif command == "GET_PROJECT":
-            return self.getProject(*args, **kargs)
         else:
-            raise Exception("command=%r not supported!" % command)
+            raise SynergyError("command %r not supported!" % command)
 
     def task(self):
         try:
             self.updateSharedQuota()
             self.deleteExpiredServers()
-        except Exception as ex:
+        except SynergyError as ex:
             LOG.error(ex)
 
-    def getProject(self, prj_id):
-        return self.projects.get(prj_id, None)
+    def doOnEvent(self, event_type, *args, **kwargs):
+        if event_type == "PROJECT_ADDED":
+            project = kwargs.get("project", None)
 
-    def getProjects(self):
-        return self.projects
+            if not project:
+                return
 
-    def addProject(self, project):
-        if self.projects.get(project.getId(), None):
-            raise Exception("project %r already exists!" % (project.getId()))
+            try:
+                quota = self.nova_manager.getQuota(project.getId())
 
-        try:
+                if quota.getSize("vcpus") > 0 and \
+                        quota.getSize("memory") > 0 and \
+                        quota.getSize("instances") > 0:
+                    self.nova_manager.updateQuota(quota, is_class=True)
+
+                    quota.setSize("vcpus", -1)
+                    quota.setSize("memory", -1)
+                    quota.setSize("instances", -1)
+
+                    self.nova_manager.updateQuota(quota)
+
+                class_quota = self.nova_manager.getQuota(
+                    project.getId(), is_class=True)
+
+                quota = project.getQuota()
+                quota.setId(project.getId())
+                quota.setSize("vcpus", class_quota.getSize("vcpus"))
+                quota.setSize("memory", class_quota.getSize("memory"))
+                quota.setSize("instances", class_quota.getSize("instances"))
+                quota.setSize(
+                    "vcpus", SharedQuota.getSize("vcpus"), private=False)
+                quota.setSize(
+                    "memory", SharedQuota.getSize("memory"), private=False)
+                quota.setSize(
+                    "instances", SharedQuota.getSize("instances"),
+                    private=False)
+
+                servers = self.nova_manager.getProjectServers(project.getId())
+
+                for server in servers:
+                    if server.getState() != "building":
+                        try:
+                            quota.allocate(server)
+                        except SynergyError as ex:
+                            fl = server.getFlavor()
+                            vcpus_size = quota.getSize("vcpus") + fl.getVCPUs()
+                            mem_size = quota.getSize("memory") + fl.getMemory()
+
+                            quota.setSize("vcpus", vcpus_size)
+                            quota.setSize("memory", mem_size)
+
+                            self.nova_manager.updateQuota(quota, is_class=True)
+
+                            LOG.warn("private quota autoresized (vcpus=%s, "
+                                     "memory=%s) for project %r (id=%s)"
+                                     % (quota.getSize("vcpus"),
+                                        quota.getSize("memory"),
+                                        project.getName(),
+                                        project.getId()))
+                            quota.allocate(server)
+
+                self.projects[project.getId()] = project
+            except SynergyError as ex:
+                LOG.error(ex)
+                raise ex
+
+        elif event_type == "PROJECT_REMOVED":
+            project = kwargs.get("project", None)
+
+            if not project:
+                return
+
             quota = self.nova_manager.getQuota(project.getId())
 
-            if quota.getSize("vcpus") > 0 and \
-                    quota.getSize("memory") > 0 and \
-                    quota.getSize("instances") > 0:
+            if quota.getSize("vcpus") <= -1 and \
+                quota.getSize("memory") <= -1 and \
+                quota.getSize("instances") <= -1:
 
-                self.nova_manager.updateQuota(quota, is_class=True)
-
-                quota.setSize("vcpus", -1)
-                quota.setSize("memory", -1)
-                quota.setSize("instances", -1)
-
-                self.nova_manager.updateQuota(quota)
-
-            class_quota = self.nova_manager.getQuota(
-                project.getId(), is_class=True)
+                qc = self.nova_manager.getQuota(project.getId(), is_class=True)
+                self.nova_manager.updateQuota(qc)
 
             quota = project.getQuota()
-            quota.setId(project.getId())
-            quota.setSize("vcpus", class_quota.getSize("vcpus"))
-            quota.setSize("memory", class_quota.getSize("memory"))
-            quota.setSize("instances", class_quota.getSize("instances"))
-            quota.setSize(
-                "vcpus", SharedQuota.getSize("vcpus"), private=False)
-            quota.setSize(
-                "memory", SharedQuota.getSize("memory"), private=False)
-            quota.setSize(
-                "instances", SharedQuota.getSize("instances"), private=False)
 
-            servers = self.nova_manager.getProjectServers(project.getId())
+            ids = []
+            ids.extend(quota.getServers("active", private=False))
+            ids.extend(quota.getServers("building", private=False))
+            ids.extend(quota.getServers("error", private=False))
 
-            for server in servers:
-                if server.getState() != "building":
-                    try:
-                        quota.allocate(server)
-                    except Exception as ex:
-                        flavor = server.getFlavor()
-                        vcpus_size = quota.getSize("vcpus") + flavor.getVCPUs()
-                        mem_size = quota.getSize("memory") + flavor.getMemory()
-
-                        quota.setSize("vcpus", vcpus_size)
-                        quota.setSize("memory", mem_size)
-
-                        self.nova_manager.updateQuota(quota, is_class=True)
-
-                        LOG.warn("private quota autoresized (vcpus=%s, "
-                                 "memory=%s) for project %r (id=%s)"
-                                 % (quota.getSize("vcpus"),
-                                    quota.getSize("memory"),
-                                    project.getName(),
-                                    project.getId()))
-                        quota.allocate(server)
-
-            self.projects[project.getId()] = project
-        except Exception as ex:
-            LOG.error(ex)
-            raise ex
-
-    def removeProject(self, project, destroy=False):
-        project = self.projects[project.getId()]
-
-        if project is None:
-            return
-
-        try:
-            if destroy:
-                quota = project.getQuota()
-
-                ids = []
-                ids.extend(quota.getServers("active", private=False))
-                ids.extend(quota.getServers("pending", private=False))
-                ids.extend(quota.getServers("error", private=False))
-
+            try:
                 for server_id in ids:
                     self.nova_manager.deleteServer(server_id)
-
-            del self.projects[project.getId()]
-        except Exception as ex:
-            LOG.error(ex)
-            raise ex
+            except SynergyError as ex:
+                LOG.error(ex)
+                raise ex
 
     def deleteExpiredServers(self):
-        for prj_id, project in self.getProjects().items():
+        for prj_id, project in self.project_manager.getProjects().items():
             TTL = project.getTTL()
             quota = project.getQuota()
 
@@ -217,7 +209,7 @@ class QuotaManager(Manager):
                                  % (uuid, TTL, state, prj_id))
 
                     self.nova_manager.deleteServer(server)
-            except Exception as ex:
+            except SynergyError as ex:
                 LOG.error(ex)
                 raise ex
 
@@ -252,7 +244,7 @@ class QuotaManager(Manager):
 
             domain = self.keystone_manager.getDomains(name="default")
             if not domain:
-                raise Exception("domain 'default' not found!")
+                raise SynergyError("domain 'default' not found!")
 
             domain = domain[0]
             dom_id = domain.getId()
@@ -260,7 +252,7 @@ class QuotaManager(Manager):
             kprojects = self.keystone_manager.getProjects(domain_id=dom_id)
 
             for kproject in kprojects:
-                project = self.getProject(kproject.getId())
+                project = self.project_manager.getProject(id=kproject.getId())
 
                 if project:
                     quota = self.nova_manager.getQuota(project.getId(),
@@ -298,7 +290,7 @@ class QuotaManager(Manager):
             enabled = False
 
             if total_vcpus < static_vcpus:
-                if self.getProjects():
+                if self.project_manager.getProjects():
                     LOG.warn("shared quota: the total statically "
                              "allocated vcpus (%s) is greater than the "
                              "total amount of vcpus allowed (%s)"
@@ -307,7 +299,7 @@ class QuotaManager(Manager):
                 shared_vcpus = total_vcpus - static_vcpus
 
                 if total_memory < static_memory:
-                    if self.getProjects():
+                    if self.project_manager.getProjects():
                         LOG.warn("shared quota: the total statically "
                                  "allocated memory (%s) is greater than "
                                  "the total amount of memory allowed (%s)"
@@ -330,10 +322,10 @@ class QuotaManager(Manager):
                 SharedQuota.setSize("vcpus", 0)
                 SharedQuota.setSize("memory", 0)
 
-            for project in self.getProjects().values():
+            for project in self.project_manager.getProjects().values():
                 quota = project.getQuota()
                 quota.setSize("vcpus", shared_vcpus, private=False)
                 quota.setSize("memory", shared_memory, private=False)
-        except Exception as ex:
+        except SynergyError as ex:
             LOG.error(ex)
             raise ex

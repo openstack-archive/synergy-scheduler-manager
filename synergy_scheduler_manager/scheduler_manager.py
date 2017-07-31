@@ -1,9 +1,7 @@
 import logging
 
-from common.flavor import Flavor
 from common.quota import SharedQuota
 from common.request import Request
-from common.server import Server
 from oslo_config import cfg
 from synergy.common.manager import Manager
 from synergy.exception import SynergyError
@@ -30,125 +28,6 @@ permissions and limitations under the License."""
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
-
-
-class Notifications(object):
-
-    def __init__(self, projects, nova_manager):
-        super(Notifications, self).__init__()
-
-        self.projects = projects
-        self.nova_manager = nova_manager
-
-    def _makeServer(self, server_info):
-        if not server_info:
-            return
-
-        flavor = Flavor()
-        flavor.setMemory(server_info["memory_mb"])
-        flavor.setVCPUs(server_info["vcpus"])
-        flavor.setStorage(server_info["root_gb"])
-
-        if "instance_type" in server_info:
-            flavor.setName(server_info["instance_type"])
-
-        server = Server()
-        server.setFlavor(flavor)
-        server.setUserId(server_info["user_id"])
-        server.setMetadata(server_info["metadata"])
-        server.setDeletedAt(server_info["deleted_at"])
-        server.setTerminatedAt(server_info["terminated_at"])
-
-        if "host" in server_info:
-            server.setHost(server_info["host"])
-
-        if "uuid" in server_info:
-            server.setId(server_info["uuid"])
-        elif "instance_id" in server_info:
-            server.setId(server_info["instance_id"])
-
-        if "project_id" in server_info:
-            server.setProjectId(server_info["project_id"])
-        elif "tenant_id" in server_info:
-            server.setProjectId(server_info["tenant_id"])
-
-        if "vm_state" in server_info:
-            server.setState(server_info["vm_state"])
-        elif "state" in server_info:
-            server.setState(server_info["state"])
-
-        return server
-
-    def info(self, ctxt, publisher_id, event_type, payload, metadata):
-        LOG.debug("Notification INFO: event_type=%s payload=%s"
-                  % (event_type, payload))
-
-        if payload is None or "state" not in payload:
-            return
-
-        state = payload["state"]
-
-        event_types = ["compute.instance.create.end",
-                       "compute.instance.delete.end",
-                       "compute.instance.update",
-                       "scheduler.run_instance"]
-
-        if event_type not in event_types:
-            return
-
-        server_info = None
-
-        if event_type == "scheduler.run_instance":
-            server_info = payload["request_spec"]["instance_type"]
-        else:
-            server_info = payload
-
-        server = self._makeServer(server_info)
-        server_id = server.getId()
-        host = server.getHost()
-
-        if server.getProjectId() not in self.projects:
-            return
-
-        if event_type == "compute.instance.create.end" and \
-                state == "active":
-            LOG.info("the server %s is now active on host %s"
-                     % (server_id, host))
-        else:
-            quota = self.projects[server.getProjectId()].getQuota()
-
-            if event_type == "compute.instance.delete.end":
-                LOG.info("the server %s has been deleted on host %s"
-                         % (server_id, host))
-                try:
-                    quota.release(server)
-                except Exception as ex:
-                        LOG.warn("cannot release server %s "
-                                 "(reason=%s)" % (server_id, ex))
-            elif state == "error":
-                LOG.info("error occurred on server %s (host %s)"
-                         % (server_id, host))
-
-                if not server.getTerminatedAt() and not server.getDeletedAt():
-                    try:
-                        self.nova_manager.deleteServer(server)
-                    except Exception as ex:
-                        LOG.error("cannot delete server %s: %s"
-                                  % (server_id, ex))
-
-                try:
-                    quota.release(server)
-                except Exception as ex:
-                        LOG.warn("cannot release server %s "
-                                 "(reason=%s)" % (server_id, ex))
-
-    def warn(self, ctxt, publisher_id, event_type, payload, metadata):
-        LOG.debug("Notification WARN: event_type=%s, payload=%s metadata=%s"
-                  % (event_type, payload, metadata))
-
-    def error(self, ctxt, publisher_id, event_type, payload, metadata):
-        LOG.debug("Notification ERROR: event_type=%s, payload=%s metadata=%s"
-                  % (event_type, payload, metadata))
 
 
 class Worker(Thread):
@@ -259,8 +138,8 @@ class Worker(Thread):
                     try:
                         self.nova_manager.buildServer(request)
 
-                        LOG.info("building server %s (user_id=%s prj_id=%s quo"
-                                 "ta=shared)" % (server_id, user_id, prj_id))
+                        LOG.info("building server %s user_id=%s prj_id=%s quo"
+                                 "ta=shared" % (server_id, user_id, prj_id))
 
                         found = True
                     except SynergyError as ex:
@@ -290,7 +169,6 @@ class SchedulerManager(Manager):
         super(SchedulerManager, self).__init__("SchedulerManager")
 
         self.config_opts = [
-            cfg.StrOpt("notification_topic", default="notifications"),
             cfg.IntOpt("backfill_depth", default=100),
         ]
         self.workers = []
@@ -321,9 +199,6 @@ class SchedulerManager(Manager):
         self.fairshare_manager = self.getManager("FairShareManager")
         self.project_manager = self.getManager("ProjectManager")
         self.backfill_depth = CONF.SchedulerManager.backfill_depth
-        self.notification_topic = CONF.SchedulerManager.notification_topic
-        self.projects = {}
-        self.listener = None
         self.exit = False
         self.configured = False
 
@@ -354,25 +229,62 @@ class SchedulerManager(Manager):
 
         self.workers.append(dynamic_worker)
 
-        self.notifications = Notifications(self.projects, self.nova_manager)
-
-        target = self.nova_manager.getTarget(topic=self.notification_topic,
-                                             exchange="nova")
-
-        self.listener = self.nova_manager.getNotificationListener(
-            targets=[target],
-            endpoints=[self.notifications])
-
         self.quota_manager.deleteExpiredServers()
 
-        self.listener.start()
         self.configured = True
 
     def destroy(self):
         for queue_worker in self.workers:
             queue_worker.destroy()
 
-    def processRequest(self, request):
+    def doOnEvent(self, event_type, *args, **kwargs):
+        if event_type == "SERVER_EVENT":
+            server = kwargs["server"]
+            event = kwargs["event"]
+            state = kwargs["state"]
+
+            self._processServerEvent(server, event, state)
+        elif event_type == "SERVER_CREATE":
+            self._processServerCreate(kwargs["request"])
+
+    def _processServerEvent(self, server, event, state):
+        if event == "compute.instance.create.end" and state == "active":
+            LOG.info("the server %s is now active on host %s"
+                     % (server.getId(), server.getHost()))
+        else:
+            project = self.project_manager.getProject(id=server.getProjectId())
+
+            if not project:
+                return
+
+            quota = project.getQuota()
+
+            if event == "compute.instance.delete.end":
+                LOG.info("the server %s has been deleted on host %s"
+                         % (server.getId(), server.getHost()))
+                try:
+                    quota.release(server)
+                except Exception as ex:
+                    LOG.warn("cannot release server %s "
+                             "(reason=%s)" % (server.getId(), ex))
+            elif state == "error":
+                LOG.info("error occurred on server %s (host %s)"
+                         % (server.getId(), server.getHost()))
+
+                if not server.getTerminatedAt() and not server.getDeletedAt():
+                    try:
+                        self.nova_manager.deleteServer(server)
+                    except Exception as ex:
+                        LOG.error("cannot delete server %s: %s"
+                                  % (server.getId(), ex))
+
+                try:
+                    quota.release(server)
+                except Exception as ex:
+                    LOG.warn("cannot release server %s "
+                             "(reason=%s)" % (server.getId(), ex))
+
+    def _processServerCreate(self, request):
         server = request.getServer()
 
         project = self.project_manager.getProject(id=request.getProjectId())
@@ -391,8 +303,8 @@ class SchedulerManager(Manager):
                 if 0 < num_attempts < 3:
                     self.nova_manager.buildServer(request)
 
-                    LOG.info("retrying to build the server %s (user_id"
-                             "=%s prj_id=%s, num_attempts=%s, reason=%s)"
+                    LOG.info("retrying to build the server %s user_id"
+                             "=%s prj_id=%s, num_attempts=%s, reason=%s"
                              % (request.getId(), request.getUserId(),
                                 request.getProjectId(), num_attempts, reason))
                     return
@@ -405,10 +317,10 @@ class SchedulerManager(Manager):
                                                     request.getProjectId()))
 
                         self.nova_manager.buildServer(request)
-                        LOG.info("building server %s (user_id=%s prj_id=%s "
-                                 "quota=private)" % (server.getId(),
-                                                     request.getUserId(),
-                                                     request.getProjectId()))
+                        LOG.info("building server %s user_id=%s prj_id=%s "
+                                 "quota=private" % (server.getId(),
+                                                    request.getUserId(),
+                                                    request.getProjectId()))
                     else:
                         self.nova_manager.deleteServer(server)
                         LOG.info("request rejected (quota exceeded): "

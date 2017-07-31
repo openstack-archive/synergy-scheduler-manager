@@ -42,18 +42,101 @@ LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
 
+class ServerEventHandler(object):
+
+    def __init__(self, nova_manager):
+        super(ServerEventHandler, self).__init__()
+
+        self.nova_manager = nova_manager
+
+    def _makeServer(self, server_info):
+        if not server_info:
+            return
+
+        flavor = Flavor()
+        flavor.setMemory(server_info["memory_mb"])
+        flavor.setVCPUs(server_info["vcpus"])
+        flavor.setStorage(server_info["root_gb"])
+
+        if "instance_type" in server_info:
+            flavor.setName(server_info["instance_type"])
+
+        server = Server()
+        server.setFlavor(flavor)
+        server.setUserId(server_info["user_id"])
+        server.setMetadata(server_info["metadata"])
+        server.setDeletedAt(server_info["deleted_at"])
+        server.setTerminatedAt(server_info["terminated_at"])
+
+        if "host" in server_info:
+            server.setHost(server_info["host"])
+
+        if "uuid" in server_info:
+            server.setId(server_info["uuid"])
+        elif "instance_id" in server_info:
+            server.setId(server_info["instance_id"])
+
+        if "project_id" in server_info:
+            server.setProjectId(server_info["project_id"])
+        elif "tenant_id" in server_info:
+            server.setProjectId(server_info["tenant_id"])
+
+        if "vm_state" in server_info:
+            server.setState(server_info["vm_state"])
+        elif "state" in server_info:
+            server.setState(server_info["state"])
+
+        return server
+
+    def info(self, ctxt, publisher_id, event_type, payload, metadata):
+        LOG.debug("Notification INFO: event_type=%s payload=%s"
+                  % (event_type, payload))
+
+        if payload is None or "state" not in payload:
+            return
+
+        state = payload["state"]
+
+        event_types = ["compute.instance.create.end",
+                       "compute.instance.delete.end",
+                       "compute.instance.update",
+                       "scheduler.run_instance"]
+
+        if event_type not in event_types:
+            return
+
+        server_info = None
+
+        if event_type == "scheduler.run_instance":
+            server_info = payload["request_spec"]["instance_type"]
+        else:
+            server_info = payload
+
+        server = self._makeServer(server_info)
+
+        self.nova_manager.notify(event_type="SERVER_EVENT", server=server,
+                                 event=event_type, state=state)
+
+    def warn(self, ctxt, publisher_id, event_type, payload, metadata):
+        LOG.debug("Notification WARN: event_type=%s, payload=%s metadata=%s"
+                  % (event_type, payload, metadata))
+
+    def error(self, ctxt, publisher_id, event_type, payload, metadata):
+        LOG.debug("Notification ERROR: event_type=%s, payload=%s metadata=%s"
+                  % (event_type, payload, metadata))
+
+
 class NovaConductorComputeAPI(object):
 
-    def __init__(self, topic, scheduler_manager, keystone_manager, msg):
-        self.topic = topic
-        self.scheduler_manager = scheduler_manager
-        self.keystone_manager = keystone_manager
-        self.target = msg.getTarget(topic=topic + "_synergy",
+    def __init__(self, synergy_topic, conductor_topic, nova_manager, msg):
+        self.nova_manager = nova_manager
+
+        self.target = msg.getTarget(topic=synergy_topic,
                                     namespace="compute_task",
-                                    version="1.10")
+                                    version="1.16")
 
         self.client = msg.getRPCClient(
-            target=msg.getTarget(topic=topic,
+            target=msg.getTarget(topic=conductor_topic,
                                  namespace="compute_task",
                                  version="1.10"))
 
@@ -62,66 +145,75 @@ class NovaConductorComputeAPI(object):
                         security_groups, block_device_mapping=None,
                         legacy_bdm=True):
         for instance in instances:
+            data = {'instances': [instance],
+                    'image': image,
+                    'filter_properties': filter_properties,
+                    'admin_password': admin_password,
+                    'injected_files': injected_files,
+                    'requested_networks': requested_networks,
+                    'security_groups': security_groups,
+                    'block_device_mapping': block_device_mapping,
+                    'legacy_bdm': legacy_bdm}
+
+            req = {"context": context, "data": data,
+                   "action": "build_instances"}
             try:
-                request = Request.build(context, instance, image,
-                                        filter_properties, admin_password,
-                                        injected_files, requested_networks,
-                                        security_groups, block_device_mapping,
-                                        legacy_bdm)
+                request = Request.fromDict(req)
 
-                self.scheduler_manager.processRequest(request)
+                self.nova_manager.notify(event_type="SERVER_CREATE",
+                                         request=request)
             except Exception as ex:
-                LOG.error("Exception has occured", exc_info=1)
-                LOG.error(ex)
+                LOG.info(ex)
 
-    def build_instance(self, context, instance, image, filter_properties,
-                       admin_password, injected_files, requested_networks,
-                       security_groups, block_device_mapping=None,
-                       legacy_bdm=True):
-        kw = {'instances': [instance],
-              'image': image,
-              'filter_properties': filter_properties,
-              'admin_password': admin_password,
-              'injected_files': injected_files,
-              'requested_networks': requested_networks,
-              'security_groups': security_groups}
+    def schedule_and_build_instances(self, context, build_requests,
+                                     request_specs, image,
+                                     admin_password, injected_files,
+                                     requested_networks, block_device_mapping):
+        index = 0
 
+        for build_request in build_requests:
+            request_spec = request_specs[index]
+
+            index += 1
+
+            data = {'build_requests': [build_request],
+                    'request_specs': [request_spec],
+                    'image': image,
+                    'admin_password': admin_password,
+                    'injected_files': injected_files,
+                    'requested_networks': requested_networks,
+                    'block_device_mapping': block_device_mapping}
+
+            req = {"context": context, "data": data,
+                   "action": "schedule_and_build_instances"}
+
+            request = Request.fromDict(req)
+
+            self.nova_manager.notify(event_type="SERVER_CREATE",
+                                     request=request)
+
+    def build_instance(self, context, action, data):
+        try:
+            cctxt = self.client.prepare()
+            cctxt.cast(context, action, **data)
+        except Exception as ex:
+            LOG.info(ex)
+
+    def migrate_server(self, context, **kwargs):
         cctxt = self.client.prepare()
-        cctxt.cast(context, 'build_instances', **kw)
+        return cctxt.call(context, 'migrate_server', **kwargs)
 
-    def migrate_server(self, context, instance, scheduler_hint, live, rebuild,
-                       flavor, block_migration, disk_over_commit,
-                       reservations=None, clean_shutdown=True,
-                       request_spec=None):
-        kw = {'instance': instance, 'scheduler_hint': scheduler_hint,
-              'live': live, 'rebuild': rebuild, 'flavor': flavor,
-              'block_migration': block_migration,
-              'disk_over_commit': disk_over_commit,
-              'reservations': reservations,
-              'clean_shutdown': clean_shutdown,
-              'request_spec': request_spec,
-              }
-
+    def unshelve_instance(self, context, **kwargs):
         cctxt = self.client.prepare()
-        return cctxt.call(context, 'migrate_server', **kw)
+        cctxt.cast(context, 'unshelve_instance', **kwargs)
 
-    def unshelve_instance(self, context, instance):
-        cctxt = self.client.prepare(version='1.3')
-        cctxt.cast(context, 'unshelve_instance', instance=instance)
+    def rebuild_instance(self, ctxt, **kwargs):
+        cctxt = self.client.prepare()
+        cctxt.cast(ctxt, 'rebuild_instance', **kwargs)
 
-    def rebuild_instance(self, ctxt, instance, new_pass, injected_files,
-                         image_ref, orig_image_ref, orig_sys_metadata, bdms,
-                         recreate=False, on_shared_storage=False, host=None,
-                         preserve_ephemeral=False, kwargs=None):
-        cctxt = self.client.prepare(version='1.8')
-        cctxt.cast(ctxt, 'rebuild_instance',
-                   instance=instance, new_pass=new_pass,
-                   injected_files=injected_files, image_ref=image_ref,
-                   orig_image_ref=orig_image_ref,
-                   orig_sys_metadata=orig_sys_metadata, bdms=bdms,
-                   recreate=recreate, on_shared_storage=on_shared_storage,
-                   preserve_ephemeral=preserve_ephemeral,
-                   host=host)
+    def resize_instance(self, ctxt, **kwargs):
+        cctxt = self.client.prepare()
+        cctxt.cast(ctxt, 'resize_instance', **kwargs)
 
 
 class NovaManager(Manager):
@@ -169,6 +261,10 @@ class NovaManager(Manager):
             cfg.StrOpt("synergy_topic",
                        help="the Synergy topic",
                        default="synergy",
+                       required=False),
+            cfg.StrOpt("notification_topic",
+                       help="the notifiction topic",
+                       default="notifications",
                        required=False),
             cfg.StrOpt("conductor_topic",
                        help="the conductor topic",
@@ -231,7 +327,6 @@ class NovaManager(Manager):
             raise Exception("SchedulerManager not found!")
 
         self.keystone_manager = self.getManager("KeystoneManager")
-        self.scheduler_manager = self.getManager("SchedulerManager")
 
         amqp_url = self.getParameter("amqp_url")
 
@@ -257,6 +352,8 @@ class NovaManager(Manager):
 
         synergy_topic = self.getParameter("synergy_topic")
 
+        notification_topic = self.getParameter("notification_topic")
+
         conductor_topic = self.getParameter("conductor_topic")
 
         self.getParameter("metadata_proxy_shared_secret", fallback=True)
@@ -275,9 +372,9 @@ class NovaManager(Manager):
                                   exchange=amqp_exchange)
 
             self.novaConductorComputeAPI = NovaConductorComputeAPI(
+                synergy_topic,
                 conductor_topic,
-                self.scheduler_manager,
-                self.keystone_manager,
+                self,
                 self.messaging)
 
             self.conductor_rpc = self.messaging.getRPCServer(
@@ -286,13 +383,23 @@ class NovaManager(Manager):
                 endpoints=[self.novaConductorComputeAPI])
 
             self.conductor_rpc.start()
+
+            self.serverEventHandler = ServerEventHandler(self)
+
+            target = self.messaging.getTarget(topic=notification_topic,
+                                              exchange=amqp_exchange)
+
+            self.listener = self.messaging.getNotificationListener(
+                targets=[target], endpoints=[self.serverEventHandler])
+
+            self.listener.start()
         except Exception as ex:
             LOG.error("Exception has occured", exc_info=1)
             LOG.error("NovaManager initialization failed! %s" % (ex))
             raise ex
 
     def execute(self, command, *args, **kargs):
-        raise Exception("command=%r not supported!" % command)
+        raise Exception("command %r not supported!" % command)
 
     def task(self):
         pass
@@ -496,36 +603,11 @@ class NovaManager(Manager):
 
         return server
 
-    def buildServer(self, request, compute=None):
-        if compute:
-            reqId = request.getId()
-
-            self.novaComputeAPI.build_and_run_instance(
-                request.getContext(),
-                request.getInstance(),
-                compute.getHost(),
-                request.getImage(),
-                request.getInstance(),
-                request.getFilterProperties(),
-                admin_password=request.getAdminPassword(),
-                injected_files=request.getInjectedFiles(),
-                requested_networks=request.getRequestedNetworks(),
-                security_groups=request.getSecurityGroups(),
-                block_device_mapping=self.getBlockDeviceMappingList(reqId),
-                node=compute.getNodeName(),
-                limits=compute.getLimits())
-        else:
-            self.novaConductorComputeAPI.build_instance(
-                context=request.getContext(),
-                instance=request.getInstance(),
-                image=request.getImage(),
-                filter_properties=request.getFilterProperties(),
-                admin_password=request.getAdminPassword(),
-                injected_files=request.getInjectedFiles(),
-                requested_networks=request.getRequestedNetworks(),
-                security_groups=request.getSecurityGroups(),
-                block_device_mapping=request.getBlockDeviceMapping(),
-                legacy_bdm=request.getLegacyBDM())
+    def buildServer(self, request):
+        self.novaConductorComputeAPI.build_instance(
+            request.getContext(),
+            request.getAction(),
+            request.getData())
 
     def deleteServer(self, server):
         if not server:
@@ -563,33 +645,6 @@ class NovaManager(Manager):
             response_data = response_data["server"]
 
         return response_data
-
-    def setQuotaTypeServer(self, server):
-        if not server:
-            return
-
-        QUERY = "insert into nova.instance_metadata (created_at, `key`, " \
-            "`value`, instance_uuid) values (%s, 'quota', %s, %s)"
-
-        connection = self.db_engine.connect()
-        trans = connection.begin()
-
-        quota_type = "private"
-
-        if server.isEphemeral():
-            quota_type = "shared"
-
-        try:
-            connection.execute(QUERY,
-                               [server.getCreatedAt(), quota_type,
-                                server.getId()])
-
-            trans.commit()
-        except SQLAlchemyError as ex:
-            trans.rollback()
-            raise Exception(ex.message)
-        finally:
-            connection.close()
 
     def stopServer(self, server):
         if not server:

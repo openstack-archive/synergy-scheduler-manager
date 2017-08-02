@@ -18,6 +18,7 @@ from oslo_config import cfg
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from synergy.common.manager import Manager
+from synergy.exception import SynergyError
 
 __author__ = "Lisa Zangrando"
 __email__ = "lisa.zangrando[AT]pd.infn.it"
@@ -321,10 +322,10 @@ class NovaManager(Manager):
         self.timeout = CONF.NovaManager.timeout
 
         if self.getManager("KeystoneManager") is None:
-            raise Exception("KeystoneManager not found!")
+            raise SynergyError("KeystoneManager not found!")
 
         if self.getManager("SchedulerManager") is None:
-            raise Exception("SchedulerManager not found!")
+            raise SynergyError("SchedulerManager not found!")
 
         self.keystone_manager = self.getManager("KeystoneManager")
 
@@ -399,7 +400,7 @@ class NovaManager(Manager):
             raise ex
 
     def execute(self, command, *args, **kargs):
-        raise Exception("command %r not supported!" % command)
+        raise SynergyError("command %r not supported!" % command)
 
     def task(self):
         pass
@@ -414,8 +415,8 @@ class NovaManager(Manager):
             return result
 
         if fallback is True:
-            raise Exception("No attribute %r found in [NovaManager] "
-                            "section of synergy.conf" % name)
+            raise SynergyError("No attribute %r found in [NovaManager] "
+                              "section of synergy.conf" % name)
         else:
             return None
 
@@ -426,8 +427,8 @@ class NovaManager(Manager):
         secret = CONF.NovaManager.metadata_proxy_shared_secret
 
         if not secret:
-            return Exception("'metadata_proxy_shared_secret' "
-                             "attribute not defined in synergy.conf")
+            raise SynergyError("'metadata_proxy_shared_secret' "
+                               "attribute not defined in synergy.conf")
 
         digest = hmac.new(secret, server.getId(), hashlib.sha256).hexdigest()
 
@@ -436,12 +437,12 @@ class NovaManager(Manager):
         service = token.getService("nova")
 
         if not service:
-            raise Exception("nova service not found!")
+            raise SynergyError("nova service not found!")
 
         endpoint = service.getEndpoint("public")
 
         if not endpoint:
-            raise Exception("nova endpoint not found!")
+            raise SynergyError("nova endpoint not found!")
 
         url = endpoint.getURL()
         url = url[:url.rfind(":") + 1] + "8775/openstack/2015-10-15/user_data"
@@ -463,9 +464,9 @@ class NovaManager(Manager):
                 return None
             elif request.status_code == 403:
                 if "Invalid proxy request signature" in request._content:
-                    raise Exception("cannot retrieve the 'userdata' value: "
-                                    "check the 'metadata_proxy_shared_secret'"
-                                    " attribute value")
+                    raise SynergyError("cannot retrieve the 'userdata' value: "
+                                       "check the 'metadata_proxy_shared_"
+                                       "secret' attribute value")
                 else:
                     request.raise_for_status()
             else:
@@ -483,8 +484,8 @@ class NovaManager(Manager):
             response_data = self.getResource(url, method="GET")
         except requests.exceptions.HTTPError as ex:
             response = ex.response.json()
-            raise Exception("error on retrieving the flavors list: %s"
-                            % response)
+            raise SynergyError("error on retrieving the flavors list: %s"
+                               % response)
 
         flavors = []
 
@@ -505,8 +506,8 @@ class NovaManager(Manager):
         try:
             response_data = self.getResource("flavors/" + id, "GET")
         except requests.exceptions.HTTPError as ex:
-            raise Exception("error on retrieving the flavor info (id=%r)"
-                            ": %s" % (id, ex.response.json()))
+            raise SynergyError("error on retrieving the flavor info (id=%r)"
+                               ": %s" % (id, ex.response.json()))
 
         flavor = None
 
@@ -533,8 +534,8 @@ class NovaManager(Manager):
             response_data = self.getResource(url, "GET", params)
         except requests.exceptions.HTTPError as ex:
             response = ex.response.json()
-            raise Exception("error on retrieving the servers list"
-                            ": %s" % (id, response))
+            raise SynergyError("error on retrieving the servers list"
+                               ": %s" % (id, response))
 
         servers = []
 
@@ -571,8 +572,8 @@ class NovaManager(Manager):
         try:
             response_data = self.getResource("servers/" + id, "GET")
         except requests.exceptions.HTTPError as ex:
-            raise Exception("error on retrieving the server info (id=%r)"
-                            ": %s" % (id, ex.response.json()))
+            raise SynergyError("error on retrieving the server info (id=%r)"
+                               ": %s" % (id, ex.response.json()))
 
         server = None
 
@@ -619,8 +620,8 @@ class NovaManager(Manager):
         try:
             response_data = self.getResource(url, "DELETE")
         except requests.exceptions.HTTPError as ex:
-            raise Exception("error on deleting the server (id=%r)"
-                            ": %s" % (id, ex.response.json()))
+            raise SynergyError("error on deleting the server (id=%r)"
+                               ": %s" % (id, ex.response.json()))
 
         if response_data:
             response_data = response_data["server"]
@@ -638,8 +639,8 @@ class NovaManager(Manager):
         try:
             response_data = self.getResource(url, "POST", data)
         except requests.exceptions.HTTPError as ex:
-            raise Exception("error on starting the server %s"
-                            ": %s" % (id, ex.response.json()))
+            raise SynergyError("error on starting the server %s"
+                               ": %s" % (id, ex.response.json()))
 
         if response_data:
             response_data = response_data["server"]
@@ -657,8 +658,8 @@ class NovaManager(Manager):
         try:
             response_data = self.getResource(url, "POST", data)
         except requests.exceptions.HTTPError as ex:
-            raise Exception("error on stopping the server info (id=%r)"
-                            ": %s" % (id, ex.response.json()))
+            raise SynergyError("error on stopping the server info (id=%r)"
+                               ": %s" % (id, ex.response.json()))
 
         if response_data:
             response_data = response_data["server"]
@@ -674,8 +675,8 @@ class NovaManager(Manager):
             response_data = self.getResource(url, "GET", data)
         except requests.exceptions.HTTPError as ex:
             response = ex.response.json()
-            raise Exception("error on retrieving the hypervisors list: %s"
-                            % response["badRequest"]["message"])
+            raise SynergyError("error on retrieving the hypervisors list: %s"
+                               % response["badRequest"]["message"])
 
         if response_data:
             response_data = response_data["hosts"]
@@ -690,8 +691,9 @@ class NovaManager(Manager):
             response_data = self.getResource(url, "GET", data)
         except requests.exceptions.HTTPError as ex:
             response = ex.response.json()
-            raise Exception("error on retrieving the hypervisor info (id=%r)"
-                            ": %s" % (id, response["badRequest"]["message"]))
+            raise SynergyError("error on retrieving the hypervisor info (id=%r"
+                               "): %s" % (id,
+                                          response["badRequest"]["message"]))
 
         if response_data:
             response_data = response_data["host"]
@@ -707,8 +709,8 @@ class NovaManager(Manager):
         except requests.exceptions.HTTPError as ex:
             LOG.info(ex)
             response = ex.response.json()
-            raise Exception("error on retrieving the hypervisors list: %s"
-                            % response["badRequest"]["message"])
+            raise SynergyError("error on retrieving the hypervisors list: %s"
+                               % response["badRequest"]["message"])
 
         hypervisors = []
 
@@ -743,8 +745,8 @@ class NovaManager(Manager):
         try:
             response_data = self.getResource(url, "GET", data)
         except requests.exceptions.HTTPError as ex:
-            raise Exception("error on retrieving the hypervisor info (id=%r)"
-                            ": %s" % (id, ex.response.json()))
+            raise SynergyError("error on retrieving the hypervisor info (id=%r"
+                               "): %s" % (id, ex.response.json()))
 
         hypervisor = None
 
@@ -775,8 +777,8 @@ class NovaManager(Manager):
                 url = "os-quota-sets/defaults"
                 response_data = self.getResource(url, "GET")
             except requests.exceptions.HTTPError as ex:
-                raise Exception("error on retrieving the quota defaults"
-                                ": %s" % ex.response.json())
+                raise SynergyError("error on retrieving the quota defaults"
+                                   ": %s" % ex.response.json())
         elif id is not None:
             if is_class:
                 url = "os-quota-class-sets/%s" % id
@@ -791,10 +793,10 @@ class NovaManager(Manager):
                 else:
                     quota_data = response_data["quota_set"]
             except requests.exceptions.HTTPError as ex:
-                raise Exception("error on retrieving the quota info (id=%r)"
-                                ": %s" % (id, ex.response.json()))
+                raise SynergyError("error on retrieving the quota info (id=%r)"
+                                   ": %s" % (id, ex.response.json()))
         else:
-            raise Exception("wrong arguments")
+            raise SynergyError("wrong arguments")
 
         quota = None
 
@@ -825,8 +827,8 @@ class NovaManager(Manager):
         try:
             self.getResource(url, "PUT", qs)
         except requests.exceptions.HTTPError as ex:
-            raise Exception("error on updating the quota info (id=%r)"
-                            ": %s" % (id, ex.response.json()))
+            raise SynergyError("error on updating the quota info (id=%r)"
+                               ": %s" % (id, ex.response.json()))
 
     def getResource(self, resource, method, data=None):
         self.keystone_manager.authenticate()
@@ -834,12 +836,12 @@ class NovaManager(Manager):
         service = token.getService("nova")
 
         if not service:
-            raise Exception("nova service not found!")
+            raise SynergyError("nova service not found!")
 
         endpoint = service.getEndpoint("public")
 
         if not endpoint:
-            raise Exception("nova endpoint not found!")
+            raise SynergyError("nova endpoint not found!")
 
         url = endpoint.getURL() + "/" + resource
 
@@ -883,7 +885,7 @@ class NovaManager(Manager):
                                       verify=self.ssl_ca_file,
                                       cert=self.ssl_cert_file)
         else:
-            raise Exception("wrong HTTP method: %s" % method)
+            raise SynergyError("wrong HTTP method: %s" % method)
 
         if request.status_code != requests.codes.ok:
             request.raise_for_status()
@@ -943,7 +945,7 @@ a.launched_at<='%(to_date)s' and (a.terminated_at>='%(from_date)s' or \
                                  "vcpus": float(row[2])}
 
         except SQLAlchemyError as ex:
-            raise Exception(ex.message)
+            raise SynergyError(ex.message)
         finally:
             connection.close()
 
@@ -990,7 +992,7 @@ where instance_uuid='%(id)s' and deleted_at is NULL""" % {"id": server.getId()}
 
                 servers.append(server)
         except SQLAlchemyError as ex:
-            raise Exception(ex.message)
+            raise SynergyError(ex.message)
         finally:
             connection.close()
 
@@ -1046,7 +1048,7 @@ where instance_uuid='%(id)s' and deleted_at is NULL""" % {"id": server.getId()}
                 servers.append(server)
 
         except SQLAlchemyError as ex:
-            raise Exception(ex.message)
+            raise SynergyError(ex.message)
         finally:
             connection.close()
 
@@ -1123,7 +1125,7 @@ nova.block_device_mapping where instance_uuid='%(server_id)s'
 
                 blockDeviceMapList.append(blockDeviceMap)
         except SQLAlchemyError as ex:
-            raise Exception(ex.message)
+            raise SynergyError(ex.message)
         finally:
             connection.close()
 

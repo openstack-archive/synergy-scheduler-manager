@@ -1,10 +1,10 @@
-import heapq
 import json
-import threading
+import Queue as queue
 
 from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError
 from synergy.common.serializer import SynergyObject
+from synergy.exception import SynergyError
 
 
 __author__ = "Lisa Zangrando"
@@ -28,16 +28,15 @@ permissions and limitations under the License."""
 
 class QueueItem(object):
 
-    def __init__(self, id, user_id, prj_id, priority,
-                 retry_count, creation_time, last_update, data=None):
-        self.id = id
-        self.user_id = user_id
-        self.prj_id = prj_id
-        self.priority = priority
-        self.retry_count = retry_count
-        self.creation_time = creation_time
-        self.last_update = last_update
-        self.data = data
+    def __init__(self):
+        self.id = -1
+        self.priority = 0
+        self.retry_count = 0
+        self.user_id = None
+        self.prj_id = None
+        self.data = None
+        self.creation_time = datetime.now()
+        self.last_update = self.creation_time
 
     def getId(self):
         return self.id
@@ -91,47 +90,32 @@ class QueueItem(object):
         self.data = data
 
 
-class PriorityQueue(object):
-
-    def __init__(self):
-        self._heap = []
-
-    def __len__(self):
-        return len(self._heap)
-
-    def __iter__(self):
-        """Get all elements ordered by asc. priority. """
-        return self
-
-    def put(self, priority, item):
-        heapq.heappush(self._heap, (-priority, item.getCreationTime(), item))
-
-    def get(self):
-        return heapq.heappop(self._heap)[2]
-
-    def size(self):
-        return len(self._heap)
-
-    def items(self):
-        return [heapq.heappop(self._heap)[2] for i in range(len(self._heap))]
-
-    def smallest(self, x):
-        result = heapq.nsmallest(x, self._heap, key=lambda s: -s[0])
-        return [item[2] for item in result]
-
-    def largest(self, x):
-        result = heapq.nlargest(x, self._heap, key=lambda s: -s[0])
-        return [item[2] for item in result]
-
-
 class Queue(SynergyObject):
 
-    def __init__(self):
+    def __init__(self, name="default", type="PRIORITY", db_engine=None):
         super(Queue, self).__init__()
 
-        self.setName("N/A")
+        if type == "FIFO":
+            self.queue = queue.Queue()
+        elif type == "LIFO":
+            self.queue = queue.LifoQueue()
+        elif type == "PRIORITY":
+            self.queue = queue.PriorityQueue()
+        else:
+            raise SynergyError("queue type %r not supported" % type)
+
+        self.set("type", type)
         self.set("is_closed", False)
         self.set("size", 0)
+        self.setName(name)
+        self.db_engine = db_engine
+
+        self._createTable()
+        self._buildFromDB()
+
+    def _setSize(self, value):
+        size = self.get("size")
+        self.set("size", size + value)
 
     def isOpen(self):
         return not self.get("is_closed")
@@ -142,69 +126,144 @@ class Queue(SynergyObject):
     def setClosed(self, is_closed):
         self.set("is_closed", is_closed)
 
+    def isEmpty(self):
+        return self.queue.empty()
+
+    def close(self):
+        self.setClosed(True)
+
+    def enqueue(self, user, data, priority=0):
+        if self.isClosed():
+            raise SynergyError("the queue is closed!")
+
+        if not user:
+            raise SynergyError("user not specified!")
+
+        if not data:
+            raise SynergyError("data not specified!")
+
+        item = QueueItem()
+        item.setUserId(user.getId())
+        item.setProjectId(user.getProjectId())
+        item.setPriority(priority)
+        item.setData(data)
+
+        self._insertItemDB(item)
+
+        if self.getType() == "PRIORITY":
+            self.queue.put((-priority, item.getCreationTime(), item))
+        else:
+            self.queue.put(item)
+
+        self._setSize(1)
+
+    def dequeue(self, block=True, timeout=None, delete=False):
+        if self.isClosed():
+            raise SynergyError("the queue is closed!")
+
+        if self.queue.empty() and not block:
+            return None
+
+        item = self.queue.get(block=block, timeout=timeout)
+
+        if not item:
+            return None
+
+        if self.getType() == "PRIORITY":
+            item = item[2]
+
+        self._getItemDataDB(item)
+
+        if delete:
+            self.delete(item)
+
+        return item
+
+    def restore(self, item):
+        if self.isClosed():
+            raise SynergyError("the queue is closed!")
+
+        if self.getType() == "PRIORITY":
+            self.queue.put((-item.getPriority(), item.getCreationTime(), item))
+        else:
+            self.queue.put(item)
+
+        self._updateItemDB(item)
+
+    def getType(self):
+        return self.get("type")
+
     def getSize(self):
         return self.get("size")
 
-    def setSize(self, size):
-        self.set("size", size)
-
-
-class QueueDB(Queue):
-
-    def __init__(self, name, db_engine, fairshare_manager=None):
-        super(QueueDB, self).__init__()
-        self.setName(name)
-
-        self.db_engine = db_engine
-        self.fairshare_manager = fairshare_manager
-        self.priority_updater = None
-        self.condition = threading.Condition()
-        self.pqueue = PriorityQueue()
-        self.createTable()
-        self.buildFromDB()
-        self.updatePriority()
-
-    def getSize(self):
+    def getUsage(self, prj_id):
+        result = 0
         connection = self.db_engine.connect()
 
         try:
-            QUERY = "select count(*) from `%s`" % self.getName()
-            result = connection.execute(QUERY)
+            QUERY = "select count(*) from `%s` " % self.getName()
+            QUERY += "where prj_id=%s"
 
-            row = result.fetchone()
-
-            return row[0]
+            qresult = connection.execute(QUERY, [prj_id])
+            row = qresult.fetchone()
+            result = row[0]
         except SQLAlchemyError as ex:
-            raise Exception(ex.message)
+            raise SynergyError(ex.message)
+        finally:
+            connection.close()
+        return result
+
+    def delete(self, item):
+        if self.isClosed():
+            raise SynergyError("the queue is closed!")
+
+        if not item or not self.db_engine:
+            return
+
+        connection = self.db_engine.connect()
+        trans = connection.begin()
+
+        try:
+            QUERY = "delete from `%s`" % self.getName()
+            QUERY += " where id=%s"
+
+            connection.execute(QUERY, [item.getId()])
+
+            trans.commit()
+        except SQLAlchemyError as ex:
+            trans.rollback()
+            raise SynergyError(ex.message)
         finally:
             connection.close()
 
-    def createTable(self):
+        self._setSize(-1)
+        self.queue.task_done()
+
+    def _createTable(self):
+        if not self.db_engine:
+            return
+
         TABLE = """CREATE TABLE IF NOT EXISTS `%s` (`id` BIGINT NOT NULL \
 AUTO_INCREMENT PRIMARY KEY, `priority` INT DEFAULT 0, user_id CHAR(40) \
 NOT NULL, prj_id CHAR(40) NOT NULL, `retry_count` INT DEFAULT 0, \
 `creation_time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, `last_update` \
-TIMESTAMP NULL, `data` TEXT NOT NULL ) ENGINE=InnoDB""" % self.getName()
+TIMESTAMP NULL, `data` TEXT NOT NULL) ENGINE=InnoDB""" % self.getName()
 
         connection = self.db_engine.connect()
 
         try:
             connection.execute(TABLE)
         except SQLAlchemyError as ex:
-            raise Exception(ex.message)
+            raise SynergyError(ex.message)
         except Exception as ex:
-            raise Exception(ex.message)
+            raise SynergyError(ex.message)
         finally:
             connection.close()
 
-    def close(self):
-        if not self.isClosed():
-            self.setClosed(True)
+    def _buildFromDB(self):
+        if not self.db_engine:
+            return
 
-            with self.condition:
-                self.condition.notifyAll()
-
-    def buildFromDB(self):
         connection = self.db_engine.connect()
 
         try:
@@ -213,182 +272,98 @@ TIMESTAMP NULL, `data` TEXT NOT NULL ) ENGINE=InnoDB""" % self.getName()
             result = connection.execute(QUERY)
 
             for row in result:
-                queue_item = QueueItem(row[0], row[1], row[2],
-                                       row[3], row[4], row[5], row[6])
+                item = QueueItem()
+                item.setId(row[0])
+                item.setUserId(row[1])
+                item.setProjectId(row[2])
+                item.setPriority(row[3])
+                item.setRetryCount(row[4])
+                item.setCreationTime(row[5])
+                item.setLastUpdate(row[6])
 
-                self.pqueue.put(row[3], queue_item)
+                self.restore(item)
+                self._setSize(1)
         except SQLAlchemyError as ex:
-            raise Exception(ex.message)
+            raise SynergyError(ex.message)
         finally:
             connection.close()
 
-        with self.condition:
-            self.condition.notifyAll()
-
-    def insertItem(self, user_id, prj_id, priority, data):
-        with self.condition:
-            idRecord = -1
-            QUERY = "insert into `%s` (user_id, prj_id, priority, " \
-                    "data) values" % self.getName()
-            QUERY += "(%s, %s, %s, %s)"
-
-            connection = self.db_engine.connect()
-            trans = connection.begin()
-
-            try:
-                result = connection.execute(QUERY,
-                                            [user_id, prj_id, priority,
-                                             json.dumps(data)])
-
-                idRecord = result.lastrowid
-
-                trans.commit()
-            except SQLAlchemyError as ex:
-                trans.rollback()
-                raise Exception(ex.message)
-            finally:
-                connection.close()
-
-            now = datetime.now()
-            queue_item = QueueItem(idRecord, user_id, prj_id,
-                                   priority, 0, now, now)
-
-            self.pqueue.put(priority, queue_item)
-
-            self.condition.notifyAll()
-
-    def reinsertItem(self, queue_item):
-        with self.condition:
-            self.pqueue.put(queue_item.getPriority(), queue_item)
-            self.condition.notifyAll()
-
-    def getItem(self, blocking=True):
-        item = None
-        queue_item = None
-
-        with self.condition:
-            while (queue_item is None and not self.isClosed()):
-                if len(self.pqueue):
-                    queue_item = self.pqueue.get()
-                elif blocking:
-                    self.condition.wait()
-                elif queue_item is None:
-                    break
-
-            if (not self.isClosed() and queue_item is not None):
-                connection = self.db_engine.connect()
-
-                try:
-                    QUERY = """select user_id, prj_id, priority, \
-retry_count, creation_time, last_update, data from `%s`""" % self.getName()
-                    QUERY += " where id=%s"
-
-                    result = connection.execute(QUERY, [queue_item.getId()])
-
-                    row = result.fetchone()
-
-                    item = QueueItem(queue_item.getId(), row[0], row[1],
-                                     row[2], row[3], row[4], row[5],
-                                     json.loads(row[6]))
-                except SQLAlchemyError as ex:
-                    raise Exception(ex.message)
-                finally:
-                    connection.close()
-
-            self.condition.notifyAll()
-
-        return item
-
-    def deleteItem(self, queue_item):
-        if not queue_item:
+    def _insertItemDB(self, item):
+        if not item or not self.db_engine:
             return
 
-        with self.condition:
-            connection = self.db_engine.connect()
-            trans = connection.begin()
+        QUERY = "insert into `%s` (user_id, prj_id, priority, " \
+                "data) values" % self.getName()
+        QUERY += "(%s, %s, %s, %s)"
 
-            try:
-                QUERY = "delete from `%s`" % self.getName()
-                QUERY += " where id=%s"
+        connection = self.db_engine.connect()
+        trans = connection.begin()
 
-                connection.execute(QUERY, [queue_item.getId()])
+        try:
+            result = connection.execute(QUERY,
+                                        [item.getUserId(),
+                                         item.getProjectId(),
+                                         item.getPriority(),
+                                         json.dumps(item.getData())])
 
-                trans.commit()
-            except SQLAlchemyError as ex:
-                trans.rollback()
+            idRecord = result.lastrowid
 
-                raise Exception(ex.message)
-            finally:
-                connection.close()
-            self.condition.notifyAll()
+            trans.commit()
 
-    def updateItem(self, queue_item):
-        if not queue_item:
+            item.setId(idRecord)
+        except SQLAlchemyError as ex:
+            trans.SynergyError()
+            raise SynergyError(ex.message)
+        finally:
+            connection.close()
+
+    def _getItemDataDB(self, item):
+        if not item or not self.db_engine:
             return
 
-        with self.condition:
-            connection = self.db_engine.connect()
-            trans = connection.begin()
+        data = None
+        connection = self.db_engine.connect()
 
-            try:
-                queue_item.setLastUpdate(datetime.now())
+        try:
+            QUERY = "select data from `%s`" % self.getName()
+            QUERY += " where id=%s"
 
-                QUERY = "update `%s`" % self.getName()
-                QUERY += " set priority=%s, retry_count=%s, " \
-                         "last_update=%s where id=%s"
+            result = connection.execute(QUERY, [item.getId()])
 
-                connection.execute(QUERY, [queue_item.getPriority(),
-                                           queue_item.getRetryCount(),
-                                           queue_item.getLastUpdate(),
-                                           queue_item.getId()])
+            row = result.fetchone()
 
-                trans.commit()
-            except SQLAlchemyError as ex:
-                trans.rollback()
+            data = json.loads(row[0])
+        except SQLAlchemyError as ex:
+            raise SynergyError(ex.message)
+        finally:
+            connection.close()
 
-                raise Exception(ex.message)
-            finally:
-                connection.close()
+        item.setData(data)
+        return data
 
-            self.pqueue.put(queue_item.getPriority(), queue_item)
-            self.condition.notifyAll()
-
-    def updatePriority(self):
-        if self.fairshare_manager is None:
+    def _updateItemDB(self, item):
+        if not item or not self.db_engine:
             return
 
-        queue_items = []
+        connection = self.db_engine.connect()
+        trans = connection.begin()
 
-        with self.condition:
-            while len(self.pqueue) > 0:
-                queue_item = self.pqueue.get()
-                priority = queue_item.getPriority()
+        try:
+            item.setLastUpdate(datetime.now())
 
-                try:
-                    priority = self.fairshare_manager.calculatePriority(
-                        user_id=queue_item.getUserId(),
-                        prj_id=queue_item.getProjectId(),
-                        timestamp=queue_item.getCreationTime(),
-                        retry=queue_item.getRetryCount())
+            QUERY = "update `%s`" % self.getName()
+            QUERY += " set priority=%s, retry_count=%s, " \
+                     "last_update=%s where id=%s"
 
-                    queue_item.setPriority(priority)
-                except Exception:
-                    continue
-                finally:
-                    queue_items.append(queue_item)
+            connection.execute(QUERY, [item.getPriority(),
+                                       item.getRetryCount(),
+                                       item.getLastUpdate(),
+                                       item.getId()])
 
-            if len(queue_items) > 0:
-                for queue_item in queue_items:
-                    self.pqueue.put(queue_item.getPriority(), queue_item)
+            trans.commit()
+        except SQLAlchemyError as ex:
+            trans.rollback()
 
-                del queue_items
-
-            self.condition.notifyAll()
-
-    def serialize(self):
-        queue = Queue()
-        queue.setName(self.getName())
-        queue.setSize(self.getSize())
-        queue.setClosed(self.isClosed())
-
-        return queue.serialize()
+            raise SynergyError(ex.message)
+        finally:
+            connection.close()

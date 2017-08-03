@@ -72,7 +72,7 @@ class FairShareManager(Manager):
     def task(self):
         try:
             self._calculateFairShare()
-        except SynergyError as ex:
+        except Exception as ex:
             LOG.error(ex)
             raise ex
 
@@ -144,7 +144,7 @@ class FairShareManager(Manager):
         total_prj_share = float(0)
         projects = self.project_manager.getProjects()
 
-        for project in projects.values():
+        for project in projects:
             prj_share = project.getShare()
 
             # check the share for each user and update the usage_record
@@ -168,7 +168,7 @@ class FairShareManager(Manager):
 
             total_prj_share += prj_share.getValue()
 
-        for project in projects.values():
+        for project in projects:
             prj_share = project.getShare()
             prj_share.setSiblingValue(total_prj_share)
             prj_share.setNormalizedValue(
@@ -196,7 +196,7 @@ class FairShareManager(Manager):
         time_window_from_date = to_date
         time_window_to_date = to_date
 
-        for prj_id, project in projects.items():
+        for project in projects:
             prj_data = project.getData()
             prj_data["actual_vcpus"] = float(0)
             prj_data["actual_memory"] = float(0)
@@ -223,9 +223,9 @@ class FairShareManager(Manager):
             from_date = to_date - timedelta(days=(self.period_length))
             time_window_from_date = from_date
 
-            for prj_id, project in projects.items():
+            for project in projects:
                 usages = self.nova_manager.getProjectUsage(
-                    prj_id, from_date, to_date)
+                    project.getId(), from_date, to_date)
 
                 for user_id, usage_rec in usages.items():
                     decay_vcpus = decay * usage_rec["vcpus"]
@@ -243,7 +243,7 @@ class FairShareManager(Manager):
 
             to_date = from_date
 
-        for prj_id, project in projects.items():
+        for project in projects:
             prj_data = project.getData()
             prj_data["time_window_to_date"] = time_window_to_date
 
@@ -262,7 +262,7 @@ class FairShareManager(Manager):
                 prj_data["actual_memory"] += usr_data["actual_memory"]
                 prj_data["actual_vcpus"] += usr_data["actual_vcpus"]
 
-        for project in projects.values():
+        for project in projects:
             prj_data = project.getData()
             prj_data["effective_memory"] = prj_data["actual_memory"]
             prj_data["effective_vcpus"] = prj_data["actual_vcpus"]
@@ -294,7 +294,7 @@ class FairShareManager(Manager):
                                    share / sibling_share))
 
                 usr_data["effective_memory"] = effective_memory
-                usr_data["effective_cores"] = effective_vcpus
+                usr_data["effective_vcpus"] = effective_vcpus
 
                 f_memory = 2 ** (-effective_memory / norm_share)
                 usr_priority.setFairShare("memory", f_memory)

@@ -70,8 +70,11 @@ class ProjectManager(Manager):
 
     def task(self):
         if not self.configured:
-            self.buildFromDB()
-            self.configured = True
+            try:
+                self.buildFromDB()
+                self.configured = True
+            except Exception as ex:
+                LOG.error(ex)
 
     def destroy(self):
         pass
@@ -296,7 +299,7 @@ class ProjectManager(Manager):
         return project
 
     def getProjects(self):
-        return self.projects
+        return self.projects.values()
 
     def createTable(self):
         TABLE = """CREATE TABLE IF NOT EXISTS project (`id` VARCHAR(64) \

@@ -77,7 +77,7 @@ class QuotaManager(Manager):
         try:
             self.updateSharedQuota()
             self.deleteExpiredServers()
-        except SynergyError as ex:
+        except Exception as ex:
             LOG.error(ex)
 
     def doOnEvent(self, event_type, *args, **kwargs):
@@ -109,13 +109,15 @@ class QuotaManager(Manager):
                 quota.setSize("vcpus", class_quota.getSize("vcpus"))
                 quota.setSize("memory", class_quota.getSize("memory"))
                 quota.setSize("instances", class_quota.getSize("instances"))
-                quota.setSize(
-                    "vcpus", SharedQuota.getSize("vcpus"), private=False)
-                quota.setSize(
-                    "memory", SharedQuota.getSize("memory"), private=False)
-                quota.setSize(
-                    "instances", SharedQuota.getSize("instances"),
-                    private=False)
+                quota.setSize("vcpus",
+                              SharedQuota.getSize("vcpus"),
+                              private=False)
+                quota.setSize("memory",
+                              SharedQuota.getSize("memory"),
+                              private=False)
+                quota.setSize("instances",
+                              SharedQuota.getSize("instances"),
+                              private=False)
 
                 servers = self.nova_manager.getProjectServers(project.getId())
 
@@ -155,8 +157,8 @@ class QuotaManager(Manager):
             quota = self.nova_manager.getQuota(project.getId())
 
             if quota.getSize("vcpus") <= -1 and \
-                quota.getSize("memory") <= -1 and \
-                quota.getSize("instances") <= -1:
+                    quota.getSize("memory") <= -1 and \
+                    quota.getSize("instances") <= -1:
 
                 qc = self.nova_manager.getQuota(project.getId(), is_class=True)
                 self.nova_manager.updateQuota(qc)
@@ -176,7 +178,8 @@ class QuotaManager(Manager):
                 raise ex
 
     def deleteExpiredServers(self):
-        for prj_id, project in self.project_manager.getProjects().items():
+        for project in self.project_manager.getProjects():
+            prj_id = project.getId()
             TTL = project.getTTL()
             quota = project.getQuota()
 
@@ -322,7 +325,7 @@ class QuotaManager(Manager):
                 SharedQuota.setSize("vcpus", 0)
                 SharedQuota.setSize("memory", 0)
 
-            for project in self.project_manager.getProjects().values():
+            for project in self.project_manager.getProjects():
                 quota = project.getQuota()
                 quota.setSize("vcpus", shared_vcpus, private=False)
                 quota.setSize("memory", shared_memory, private=False)

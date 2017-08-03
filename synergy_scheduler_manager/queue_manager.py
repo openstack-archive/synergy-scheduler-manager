@@ -1,9 +1,10 @@
 import logging
 
-from common.queue import QueueDB
+from common.queue import Queue
 from oslo_config import cfg
 from sqlalchemy import create_engine
 from synergy.common.manager import Manager
+from synergy.exception import SynergyError
 
 
 __author__ = "Lisa Zangrando"
@@ -39,17 +40,9 @@ class QueueManager(Manager):
             cfg.IntOpt('db_pool_recycle', default=30, required=False),
             cfg.IntOpt('db_max_overflow', default=5, required=False)
         ]
-        self.queue_list = {}
+        self.queues = {}
 
     def setup(self):
-        if self.getManager("FairShareManager") is None:
-            raise Exception("FairShareManager not found!")
-
-        self.fairshare_manager = self.getManager("FairShareManager")
-
-        if self.fairshare_manager is None:
-            raise Exception("FairShareManager not found!")
-
         db_connection = CONF.QueueManager.db_connection
         pool_size = CONF.QueueManager.db_pool_size
         pool_recycle = CONF.QueueManager.db_pool_recycle
@@ -61,49 +54,42 @@ class QueueManager(Manager):
                                            pool_recycle=pool_recycle,
                                            max_overflow=max_overflow)
         except Exception as ex:
-            LOG.error(ex)
-            raise ex
+            raise SynergyError(ex.message)
 
     def execute(self, command, *args, **kargs):
-        if command == "CREATE_QUEUE":
-            return self.createQueue(*args, **kargs)
-        elif command == "DELETE_QUEUE":
-            return self.deleteQueue(*args, **kargs)
-        elif command == "GET_QUEUE":
-            queue = self.getQueue(kargs.get("name", None))
-            return queue
-
+        if command == "GET_QUEUE":
+            return self.getQueue(kargs.get("name", None))
         else:
-            raise Exception("command=%r not supported!" % command)
+            raise SynergyError("command %r not supported!" % command)
 
     def task(self):
         try:
-            for queue in self.queue_list.values():
+            for queue in self.queues.values():
                 queue.updatePriority()
         except Exception as ex:
-            LOG.error("Exception has occured", exc_info=1)
             LOG.error(ex)
 
     def destroy(self):
-        for queue in self.queue_list.values():
+        for queue in self.queues.values():
             queue.close()
 
-    def createQueue(self, name):
-        if name not in self.queue_list:
-            queue = QueueDB(name, self.db_engine, self.fairshare_manager)
-            self.queue_list[name] = queue
-            return queue
-        else:
-            raise Exception("the queue %r already exists!" % name)
+    def createQueue(self, name, type):
+        if name in self.queues:
+            raise SynergyError("the queue %r already exists!" % name)
+
+        queue = Queue(name, type, db_engine=self.db_engine)
+        self.queues[name] = queue
+
+        return queue
 
     def deleteQueue(self, name):
-        if name not in self.queue_list:
-            raise Exception("queue %r not found!" % name)
+        if name not in self.queues:
+            raise SynergyError("queue %r not found!" % name)
 
-        del self.queue_list[name]
+        del self.queues[name]
 
     def getQueue(self, name):
-        if name not in self.queue_list:
-            raise Exception("queue %r not found!" % name)
+        if name not in self.queues:
+            raise SynergyError("queue %r not found!" % name)
 
-        return self.queue_list[name]
+        return self.queues[name]

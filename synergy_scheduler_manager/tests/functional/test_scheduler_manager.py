@@ -14,7 +14,7 @@ from mock import create_autospec
 from mock import MagicMock
 from sqlalchemy.engine.base import Engine
 from synergy_scheduler_manager.common.project import Project
-from synergy_scheduler_manager.common.queue import QueueDB
+from synergy_scheduler_manager.common.queue import Queue
 from synergy_scheduler_manager.common.queue import QueueItem
 from synergy_scheduler_manager.project_manager import ProjectManager
 from synergy_scheduler_manager.scheduler_manager import Worker
@@ -124,6 +124,7 @@ class TestWorker(base.TestCase):
     # TO COMPLETE
     def setUp(self):
         super(TestWorker, self).setUp()
+        self.db_engine_mock = create_autospec(Engine)
         self.nova_manager_mock = MagicMock()
         self.keystone_manager_mock = MagicMock()
         db_engine_mock = create_autospec(Engine)
@@ -156,7 +157,7 @@ class TestWorker(base.TestCase):
 
         self.worker = Worker(
             name="test",
-            queue=QueueDB("testq", db_engine_mock),
+            queue=Queue("testq", db_engine=db_engine_mock),
             project_manager=self.project_manager,
             nova_manager=self.nova_manager_mock,
             keystone_manager=self.keystone_manager_mock)
@@ -171,7 +172,6 @@ class TestWorker(base.TestCase):
     def test_run_build_server(self):
 
         def nova_exec_side_effect(command, *args, **kwargs):
-            """Mock nova.execute to do a successful build."""
             if command == "GET_SERVER":
                 res = {"OS-EXT-STS:vm_state": "building",
                        "OS-EXT-STS:task_state": "scheduling"}
@@ -188,7 +188,7 @@ class TestWorker(base.TestCase):
 
         # Mock QueueItem in the queue
         qitem_mock = create_autospec(QueueItem)
-        get_item_mock = create_autospec(self.worker.queue.getItem)
+        get_item_mock = create_autospec(self.worker.queue.dequeue)
         get_item_mock.return_value = qitem_mock
         self.worker.queue.getItem = get_item_mock
 
@@ -203,5 +203,5 @@ class TestWorker(base.TestCase):
         project.getQuota().allocate = quota_allocate_mock
 
         # Delete item from the queue
-        delete_item_mock = create_autospec(self.worker.queue.deleteItem)
+        delete_item_mock = create_autospec(self.worker.queue.delete)
         self.worker.queue.deleteItem = delete_item_mock

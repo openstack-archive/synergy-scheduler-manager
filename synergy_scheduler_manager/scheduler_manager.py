@@ -68,20 +68,20 @@ class Worker(Thread):
                 last_release_time = SharedQuota.getLastReleaseTime()
 
                 while queue_items:
-                    self.queue.reinsertItem(queue_items.pop(0))
+                    self.queue.restore(queue_items.pop(0))
 
             if len(queue_items) >= self.backfill_depth:
                 SharedQuota.wait()
                 continue
 
-            queue_item = self.queue.getItem(blocking=False)
+            queue_item = self.queue.dequeue(block=False)
 
             if queue_item is None:
                 if self.queue.getSize():
                     SharedQuota.wait()
                     continue
                 else:
-                    queue_item = self.queue.getItem(blocking=True)
+                    queue_item = self.queue.dequeue(block=True)
 
             if queue_item is None:
                 continue
@@ -100,7 +100,7 @@ class Worker(Thread):
 
                     if s.getState() != "building":
                         # or server["OS-EXT-STS:task_state"] != "scheduling":
-                        self.queue.deleteItem(queue_item)
+                        self.queue.delete(queue_item)
                         continue
                 except SynergyError as ex:
                     LOG.warn("the server %s is not anymore available!"
@@ -147,7 +147,7 @@ class Worker(Thread):
                                   % (server.getId(), ex))
 
                     if found:
-                        self.queue.deleteItem(queue_item)
+                        self.queue.delete(queue_item)
                     else:
                         quota.release(server)
                         queue_items.append(queue_item)
@@ -158,7 +158,7 @@ class Worker(Thread):
                 LOG.error("Exception has occured", exc_info=1)
                 LOG.error("Worker %s: %s" % (self.name, ex))
 
-                self.queue.deleteItem(queue_item)
+                self.queue.delete(queue_item)
 
         LOG.info("Worker %s destroyed!" % self.name)
 
@@ -212,22 +212,25 @@ class SchedulerManager(Manager):
         self.quota_manager.updateSharedQuota()
 
         try:
-            self.dynamic_queue = self.queue_manager.createQueue("DYNAMIC")
+            self.queue = self.queue_manager.createQueue("DYNAMIC", "PRIORITY")
         except SynergyError as ex:
             LOG.error("Exception has occured", exc_info=1)
             LOG.error(ex)
 
-        self.dynamic_queue = self.queue_manager.getQueue("DYNAMIC")
+        self.queue = self.queue_manager.getQueue("DYNAMIC")
 
-        dynamic_worker = Worker("DYNAMIC",
-                                self.dynamic_queue,
-                                self.project_manager,
-                                self.nova_manager,
-                                self.keystone_manager,
-                                self.backfill_depth)
-        dynamic_worker.start()
+        for project in self.project_manager.getProjects():
+            project.setQueue(self.queue)
 
-        self.workers.append(dynamic_worker)
+        worker = Worker("DYNAMIC",
+                        self.queue,
+                        self.project_manager,
+                        self.nova_manager,
+                        self.keystone_manager,
+                        self.backfill_depth)
+        worker.start()
+
+        self.workers.append(worker)
 
         self.quota_manager.deleteExpiredServers()
 
@@ -246,6 +249,14 @@ class SchedulerManager(Manager):
             self._processServerEvent(server, event, state)
         elif event_type == "SERVER_CREATE":
             self._processServerCreate(kwargs["request"])
+        elif event_type == "PROJECT_ADDED":
+            if not self.configured:
+                return
+
+            project = kwargs.get("project", None)
+
+            if self.queue and project:
+                project.setQueue(self.queue)
 
     def _processServerEvent(self, server, event, state):
         if event == "compute.instance.create.end" and state == "active":
@@ -356,11 +367,9 @@ class SchedulerManager(Manager):
                             token_admin.getUser().getId(), token_user)
 
                     context["trust_id"] = trust.getId()
+                    user = project.getUser(id=request.getUserId())
 
-                    self.dynamic_queue.insertItem(request.getUserId(),
-                                                  request.getProjectId(),
-                                                  priority=priority,
-                                                  data=request.toDict())
+                    self.queue.enqueue(user, request.toDict(), priority)
 
                     LOG.info("new request: id=%s user_id=%s prj_id=%s priority"
                              "=%s quota=shared" % (request.getId(),

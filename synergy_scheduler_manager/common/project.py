@@ -40,6 +40,12 @@ class Project(SynergyObject):
     def getQuota(self):
         return self.get("quota")
 
+    def setQueue(self, queue):
+        self.set("queue", queue)
+
+    def getQueue(self):
+        return self.get("queue")
+
     def getShare(self):
         return self.get("share")
 
@@ -75,3 +81,12 @@ class Project(SynergyObject):
 
     def setEnabled(self, enabled=True):
         self.set("enabled", enabled)
+
+    def serialize(self):
+        queue = self.getQueue()
+        usage = queue.getUsage(self.getId())
+
+        self.getData()["queue_usage"] = usage
+        self.getData()["queue_size"] = queue.getSize()
+
+        return super(Project, self).serialize()

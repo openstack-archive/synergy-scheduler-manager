@@ -37,26 +37,26 @@ class KeystoneAuthorization(object):
         super(KeystoneAuthorization, self).__init__()
         rules = [policy.RuleDefault('admin', 'role:admin or is_admin:True'),
                  policy.RuleDefault('admin_or_owner',
-                                    'rule:admin or project_id:%(id)s or\
-                                      project_name:%(name)s'),
+                                    'rule:admin or project_id:%(id)s or '
+                                    'project_name:%(name)s'),
                  policy.RuleDefault('cloud_admin',
                                     'rule:admin and project_name:admin'),
                  policy.RuleDefault('default', 'rule:admin'),
                  policy.RuleDefault('synergy:EXECUTE', 'rule:cloud_admin'),
                  policy.RuleDefault('synergy:LIST', 'rule:admin'),
-                 policy.RuleDefault('synergy:START', 'rule:cloud_admin'),
-                 policy.RuleDefault('synergy:STOP', 'rule:cloud_admin'),
-                 policy.RuleDefault('synergy:STATUS', 'rule:cloud_admin'),
+                 policy.RuleDefault('synergy:START', 'rule:admin'),
+                 policy.RuleDefault('synergy:STOP', 'rule:admin'),
+                 policy.RuleDefault('synergy:STATUS', 'rule:admin'),
                  policy.RuleDefault('ProjectManager:GET_PROJECTS',
                                     'rule:cloud_admin'),
                  policy.RuleDefault('ProjectManager:GET_PROJECT',
                                     'rule:admin_or_owner'),
                  policy.RuleDefault('ProjectManager:ADD_PROJECT',
-                                    'rule:cloud_admin'),
+                                    'rule:admin'),
                  policy.RuleDefault('ProjectManager:REMOVE_PROJECT',
-                                    'rule:cloud_admin'),
+                                    'rule:admin'),
                  policy.RuleDefault('ProjectManager:UPDATE_PROJECT',
-                                    'rule:cloud_admin')]
+                                    'rule:admin')]
 
         global ENFORCER
         policy_file = CONF.Authorization.policy_file

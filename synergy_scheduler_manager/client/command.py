@@ -96,7 +96,7 @@ class ProjectCommand(ExecuteCommand):
             if args.s_quota:
                 headers.append("shared quota")
             if args.queue:
-                headers.append("queue")
+                headers.append("queue usage")
             if args.share:
                 headers.append("share")
             if args.ttl:
@@ -160,8 +160,8 @@ class ProjectCommand(ExecuteCommand):
                     share = project.getShare()
                     share_value = share.getValue()
                     share_norm = share.getNormalizedValue()
-                    row.append("{:.2f}% | {:.2f}%".format(share_value,
-                                                          share_norm * 100))
+                    row.append("{:.2f}% | {:.2%}".format(share_value,
+                                                         share_norm))
 
                 if attribute == "TTL":
                     row.append(project.getTTL())
@@ -195,22 +195,21 @@ class ProjectCommand(ExecuteCommand):
                 if attribute == "usage":
                     data = project.getData()
 
-                    usage = "vcpus: {:.2f}% | ram: {:.2f}%".format(
-                        data["effective_vcpus"] * 100,
-                        data["effective_memory"] * 100)
+                    usage = "vcpus: {:.2%} | ram: {:.2%}".format(
+                        data["effective_vcpus"], data["effective_memory"])
 
                     row.append(usage)
 
-                if attribute == "queue":
+                if attribute == "queue usage":
                     data = project.getData()
                     q_usage = data.get("queue_usage", 0)
                     q_size = data.get("queue_size", 0)
 
                     if q_size:
-                        usage = float(q_usage) / float(q_size) * 100
-                        row.append("{:.2f}%".format(usage))
+                        usage = float(q_usage) / float(q_size)
+                        row.append("{:d} ({:.2%})".format(q_usage, usage))
                     else:
-                        row.append("0%")
+                        row.append("0 (0%)")
 
             table.append(row)
 
@@ -300,19 +299,18 @@ class UserCommand(ExecuteCommand):
 
                 if attribute == "share":
                     share = user.getShare()
-                    share_value = share.getValue()
                     share_norm = share.getNormalizedValue()
-                    row.append("{:.2f}% | {:.2f}%".format(share_value,
-                                                          share_norm * 100))
+
+                    row.append("{:.2%}".format(share_norm))
+
                 if attribute == "priority":
                     row.append(user.getPriority().getValue())
 
                 if attribute == "usage":
                     data = user.getData()
 
-                    usage = "vcpus: {:.2f}% | ram: {:.2f}%".format(
-                        data["actual_vcpus"] * 100,
-                        data["actual_memory"] * 100)
+                    usage = "vcpus: {:.2%} | ram: {:.2%}".format(
+                        data["actual_vcpus"], data["actual_memory"])
 
                     row.append(usage)
 

@@ -140,8 +140,9 @@ class ProjectManager(Manager):
             project = self.getProject(id=prj_id)
 
             if project:
-                project.removeUser(usr_id)
-                self.notify(event_type="USER_REMOVED", user=user)
+                user = project.removeUser(usr_id)
+                if user:
+                    self.notify(event_type="USER_REMOVED", user=user)
 
         elif event_type == "identity.user.deleted":
             user_id = kwargs.get("resource_info", None)
@@ -156,6 +157,14 @@ class ProjectManager(Manager):
                 except SynergyError as ex:
                     LOG.info(ex)
 
+        elif event_type == "identity.project.deleted":
+            LOG.info(kwargs)
+            prj_id = kwargs.get("resource_info", None)
+            project = self.getProject(id=prj_id, name=prj_id)
+
+            if project:
+                self._removeProject(project)
+
     def _parseNumber(self, value, default=None):
         if not value:
             return default
@@ -168,8 +177,13 @@ class ProjectManager(Manager):
         raise SynergyError("%r is not a number!" % str(value))
 
     def _addProject(self, prj_id, prj_name, TTL, share):
+        project = None
+
         if prj_id:
-            project = self.keystone_manager.getProject(prj_id)
+            try:
+                project = self.keystone_manager.getProject(prj_id)
+            except SynergyError:
+                raise SynergyError("project not found in Keystone!")
         elif prj_name:
             projects = self.keystone_manager.getProjects(name=prj_name)
 
@@ -182,7 +196,7 @@ class ProjectManager(Manager):
             raise SynergyError("missing project attributes")
 
         if not project:
-            raise SynergyError("project not found!")
+            raise SynergyError("project not found in Keystone!")
 
         prj_TTL = self._parseNumber(TTL, default=self.default_TTL)
         prj_share = self._parseNumber(share, 0)
@@ -213,9 +227,14 @@ class ProjectManager(Manager):
         finally:
             connection.close()
 
+        users = self.keystone_manager.getUsers(prj_id=project.getId())
+
+        for user in users:
+            project.addUser(user)
+
         self.projects[project.getId()] = project
 
-        LOG.info("added project %s" % project.getName())
+        LOG.info("added project %r" % project.getName())
         self.notify(event_type="PROJECT_ADDED", project=project)
 
         return project
@@ -255,13 +274,14 @@ class ProjectManager(Manager):
         finally:
             connection.close()
 
+        LOG.info("updated project %r" % project.getName())
         self.notify(event_type="PROJECT_UPDATED", project=project)
 
-    def _removeProject(self, project):
-        if project.getId() not in self.projects.keys():
-            raise SynergyError("project %s not found!" % project.getId())
-
-        self.projects.pop(project.getId())
+    def _removeProject(self, project, force=False):
+        if not force:
+            if project.getId() not in self.projects.keys():
+                raise SynergyError("project %s not found!" % project.getId())
+            self.projects.pop(project.getId())
 
         connection = self.db_engine.connect()
         trans = connection.begin()
@@ -279,7 +299,7 @@ class ProjectManager(Manager):
         finally:
             connection.close()
 
-        LOG.info("removed project %s" % project.getName())
+        LOG.info("removed project %r" % project.getName())
         self.notify(event_type="PROJECT_REMOVED", project=project)
 
     def getProject(self, id=None, name=None):
@@ -336,7 +356,7 @@ NOT NULL PRIMARY KEY, name VARCHAR(64), share INT DEFAULT 0, TTL INT DEFAULT \
                     k_project = self.keystone_manager.getProject(project_id)
 
                     if not k_project:
-                        self.removeProject(project)
+                        self._removeProject(project)
                         continue
 
                     users = self.keystone_manager.getUsers(prj_id=project_id)
@@ -350,7 +370,10 @@ NOT NULL PRIMARY KEY, name VARCHAR(64), share INT DEFAULT 0, TTL INT DEFAULT \
                 except SynergyError as ex:
                     LOG.info("the project %s seems not to exist anymore! "
                              "(reason=%s)" % (project.getName(), ex.message))
-                    self.removeProject(project)
+                    try:
+                        self._removeProject(project, force=True)
+                    except Exception as ex:
+                        LOG.info(ex)
         except SQLAlchemyError as ex:
             raise SynergyError(ex.message)
         finally:

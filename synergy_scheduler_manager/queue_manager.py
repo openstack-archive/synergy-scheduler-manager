@@ -63,11 +63,7 @@ class QueueManager(Manager):
             raise SynergyError("command %r not supported!" % command)
 
     def task(self):
-        try:
-            for queue in self.queues.values():
-                queue.updatePriority()
-        except Exception as ex:
-            LOG.error(ex)
+        pass
 
     def destroy(self):
         for queue in self.queues.values():

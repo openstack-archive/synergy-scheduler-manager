@@ -69,16 +69,21 @@ class KeystoneAuthorization(object):
             self.storePolicies(ENFORCER, policy_file)
 
     def storePolicies(self, enforcer, output_file):
-        output_file = (open(output_file, 'w') if output_file
-                       else sys.stdout)
+        output_file = (open(output_file, 'w') if output_file else sys.stdout)
         rules = {}
         rules.update(enforcer.registered_rules)
         rules.update(enforcer.file_rules)
 
+        output_file.write("{\n")
+
         for rule in sorted(rules.keys(), key=lambda v: v.upper()):
             section = generator._format_rule_default_yaml(rules[rule],
                                                           include_help=False)
-            output_file.write(section)
+            output_file.write("    ")
+            output_file.write(section.replace('\n', ',\n'))
+
+        output_file.write("}")
+        output_file.close()
 
     def authorize(self, context):
         managers = context.get("managers", None)

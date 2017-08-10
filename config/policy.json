@@ -1,0 +1,17 @@
+{
+    "admin": "role:admin or is_admin:True",
+    "admin_or_owner": "rule:admin or project_id:%(id)s or project_name:%(name)s",
+    "cloud_admin": "rule:admin and project_name:admin",
+    "default": "rule:admin",
+    "ProjectManager:ADD_PROJECT": "rule:admin",
+    "ProjectManager:GET_PROJECT": "rule:admin_or_owner",
+    "ProjectManager:GET_PROJECTS": "rule:cloud_admin",
+    "ProjectManager:REMOVE_PROJECT": "rule:admin",
+    "ProjectManager:UPDATE_PROJECT": "rule:admin",
+    "synergy:EXECUTE": "rule:cloud_admin",
+    "synergy:LIST": "rule:admin",
+    "synergy:START": "rule:admin",
+    "synergy:STATUS": "rule:admin",
+    "synergy:STOP": "rule:admin",
+}
+

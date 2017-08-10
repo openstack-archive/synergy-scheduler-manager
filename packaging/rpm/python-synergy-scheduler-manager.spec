@@ -42,12 +42,17 @@ schedulers.
 rm -rf $RPM_BUILD_ROOT
 %{__python} setup.py install -O1 --skip-build --root $RPM_BUILD_ROOT
 install -D -m0644 config/synergy_scheduler.conf       %{buildroot}%{_sysconfdir}/synergy/synergy_scheduler.conf
+install -D -m0644 config/policy.json                  %{buildroot}%{_sysconfdir}/synergy/policy.json
 
 
 %files
 %doc README.rst
 %{python_sitelib}/*
+%{_sysconfdir}/synergy
+%dir %attr(0755, synergy, synergy) %{_sysconfdir}/synergy/
 %config(noreplace) %{_sysconfdir}/synergy/synergy_scheduler.conf
+%config(noreplace) %{_sysconfdir}/synergy/policy.json
+%attr(0644, synergy, synergy) %{_sysconfdir}/synergy/policy.json
 
 
 %changelog

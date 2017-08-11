@@ -1,7 +1,25 @@
 CHANGES
 =======
 
-* Add new "synergy_topic" parameter
+* Added support for policy.json in packaging process
+* Project manager problems concerning the adding and removing projects
+* Authorization policies changed
+* Added queue usage to project
+* Missing security support
+* Synergy should never raise Exception
+* Added support for OpenStack Ocata to NovaManager
+* Partition Director requires configuring Synergy through RESTful API
+* Added support for notifications to KeystoneManager
+* MessagingAPI should be implemented as common module
+* The SchedulerManager doesn't receive all the compute.instance.delete.end notifications
+
+2.4.0
+-----
+
+* Release v2.4.0
+* Update packaging with docker
+* Update synergy scheduler manager packaging
+* Add new "synergy\_topic" parameter
 * Fix a possible shared quota consistency issue
 * Fix the bug concerning the user which is still showed after deletion
 * simplify packaging with docker
@@ -47,13 +65,13 @@ CHANGES
 
 * Release v2.2.0
 * Release v2.1.0
-* [packaging] make docker aware of PKG_VERSION
+* [packaging] make docker aware of PKG\_VERSION
 * Synergy releases in advance the VMs that are going to be destroyed
 * Queue.updatePriority() takes much time if the queue is large
-* Add the new clock_skew parameter for KeystoneManager
-* Invalid input for field/attribute quota_class_set
+* Add the new clock\_skew parameter for KeystoneManager
+* Invalid input for field/attribute quota\_class\_set
 * KeystoneManager.authenticate() uses a wrong domain attribute
-* Add a backfill_depth parameter
+* Add a backfill\_depth parameter
 * Item readjustment fixed in PriorityQueue
 * The FairshareManager should not use the Manager.condition var
 * Fix scheduling when shared quota is disabled
@@ -87,7 +105,7 @@ CHANGES
 
 * use pbr fully for easier package building
 * fix connection URL to RabbitMQ
-* Added Queue class to synergy_scheduler_manager/common/queue.py
+* Added Queue class to synergy\_scheduler\_manager/common/queue.py
 * Common objects and relative test units added
 * Destroy() method fixed
 * Fix requirement version pinning
@@ -113,12 +131,12 @@ CHANGES
 * getExpiredServers() fixed
 * add more unit tests to managers
 * Dynamic quota initialization fixed!
-* changed default value of ram_allocation_ration
+* changed default value of ram\_allocation\_ration
 * update library required versions
 * SchedulerManager initialization fixed
 * mark requests lib as dependency in RPM spec file
 * broaden package versions in requirements
-* scheduler_maanger.py: restored the signatures of Notificatio.info() Notificatio.warn() and Notificatio.error() fairshare_manager.py: fixed calculateFairShare() client: added new shell commands
+* scheduler\_maanger.py: restored the signatures of Notificatio.info() Notificatio.warn() and Notificatio.error() fairshare\_manager.py: fixed calculateFairShare() client: added new shell commands
 * add docker packaging for CentOS 7 & Ubuntu 14.04
 * bump to vesion 0.2
 * various clean & fix w/ changes in functionalities

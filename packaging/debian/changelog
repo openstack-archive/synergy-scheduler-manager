@@ -1,3 +1,19 @@
+python-synergy-scheduler-manager (2.5.0) unstable; urgency=low
+
+  * Added support for policy.json in packaging process
+  * Project manager problems concerning the adding and removing projects
+  * Authorization policies changed
+  * Added queue usage to project
+  * Missing security support
+  * Synergy should never raise Exception
+  * Added support for OpenStack Ocata to NovaManager
+  * Partition Director requires configuring Synergy through RESTful API
+  * Added support for notifications to KeystoneManager
+  * MessagingAPI should be implemented as common module
+  * The SchedulerManager doesn't receive all the compute.instance.delete.end notifications
+
+ -- Ervin Konomi <ervin.konomi@pd.infn.it>  Fri, 11 Aug 2017 09:53:16 +0200
+
 python-synergy-scheduler-manager (2.4.0) unstable; urgency=low
 
   * Add new "synergy_topic" parameter

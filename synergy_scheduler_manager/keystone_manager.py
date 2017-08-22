@@ -189,7 +189,7 @@ class KeystoneManager(Manager):
         if self.project_id:
             data["auth"]["scope"] = {
                 "project": {"id": self.project_id,
-                            "domain": {"name": self.project_domaini_name}}}
+                            "domain": {"name": self.project_domain_name}}}
 
         response = requests.post(url=self.auth_url + "/auth/tokens",
                                  headers=headers,

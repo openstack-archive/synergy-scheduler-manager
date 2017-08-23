@@ -1,7 +1,7 @@
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 
 Name:          python-synergy-scheduler-manager
-Version:       2.5.0
+Version:       2.5.1
 Release:       1%{?dist}
 Summary:       Advanced scheduling capability for OpenStack.
 Source:        %name-%version.tar.bz2
@@ -11,15 +11,15 @@ License:       ASL 2.0
 BuildArch:     noarch
 BuildRequires: python-devel
 BuildRequires: python-setuptools
-Requires:      python-nova >= 12.0
-Requires:      python-oslo-config
-Requires:      python-oslo-messaging
-Requires:      python-oslo-serialization
-Requires:      python-oslo-versionedobjects
-Requires:      python-pbr
-Requires:      python-requests
+Requires:      python-nova >= 14.0
+Requires:      python2-oslo-config
+Requires:      python2-oslo-messaging
+Requires:      python2-oslo-serialization
+Requires:      python2-oslo-versionedobjects
+Requires:      python2-pbr
+Requires:      python2-requests
 Requires:      python-sqlalchemy
-Requires:      python-synergy-service >= 1.1
+Requires:      python-synergy-service >= 1.5
 
 
 %description
@@ -56,6 +56,10 @@ install -D -m0644 config/policy.json                  %{buildroot}%{_sysconfdir}
 
 
 %changelog
+* Mon Aug 21 2017 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 2.5.1-1
+- Update some python requirements to python2-* names
+- fix small typo preventing scheduler initialization
+
 * Fri Aug 11 2017 Ervin Konomi <ervin.konomi@pd.infn.it> - 2.5.0-1
 - Added support for policy.json in packaging process
 - Project manager problems concerning the adding and removing projects

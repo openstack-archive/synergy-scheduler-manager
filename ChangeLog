@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+* fix small typo preventing scheduler initialization
+
+2.5.0
+-----
+
+* Release 2.5.0
 * Added support for policy.json in packaging process
 * Project manager problems concerning the adding and removing projects
 * Authorization policies changed

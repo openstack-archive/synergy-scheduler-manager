@@ -1,3 +1,10 @@
+python-synergy-scheduler-manager (2.5.1) unstable; urgency=low
+
+  * Update some python requirements to python2-* names
+  * fix small typo preventing scheduler initialization
+
+ -- Vincent Llorens <vincent.llorens@cc.in2p3.fr>  Wed, 23 Aug 2017 11:16:20 +0200
+
 python-synergy-scheduler-manager (2.5.0) unstable; urgency=low
 
   * Added support for policy.json in packaging process

@@ -214,7 +214,6 @@ class QuotaManager(Manager):
                     self.nova_manager.deleteServer(server)
             except SynergyError as ex:
                 LOG.error(ex)
-                raise ex
 
     def updateSharedQuota(self):
         # calculate the the total limit per cores and ram

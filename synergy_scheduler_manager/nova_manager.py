@@ -255,7 +255,7 @@ class NovaManager(Manager):
                        help="the amqp password",
                        default=None,
                        required=False),
-            cfg.StrOpt("amqp_virt_host",
+            cfg.StrOpt("amqp_virtual_host",
                        help="the amqp virtual host",
                        default="/",
                        required=False),
@@ -265,7 +265,7 @@ class NovaManager(Manager):
                        required=False),
             cfg.StrOpt("notification_topic",
                        help="the notifiction topic",
-                       default="notifications",
+                       default="nova_notification",
                        required=False),
             cfg.StrOpt("conductor_topic",
                        help="the conductor topic",
@@ -281,7 +281,7 @@ class NovaManager(Manager):
                        required=False),
             cfg.StrOpt("metadata_proxy_shared_secret",
                        help="the metadata proxy shared secret",
-                       default=None,
+                       default="METADATA_SECRET",
                        required=True),
             cfg.FloatOpt("cpu_allocation_ratio",
                          help="the cpu allocation ratio",
@@ -343,7 +343,7 @@ class NovaManager(Manager):
 
         amqp_password = self.getParameter("amqp_password")
 
-        amqp_virt_host = self.getParameter("amqp_virt_host")
+        amqp_virtual_host = self.getParameter("amqp_virtual_host")
 
         amqp_exchange = self.getParameter("amqp_exchange")
 
@@ -368,8 +368,10 @@ class NovaManager(Manager):
             self.db_engine = create_engine(db_connection, pool_recycle=30)
 
             self.messaging = AMQP(url=amqp_url, backend=amqp_backend,
-                                  username=amqp_user, password=amqp_password,
-                                  hosts=amqp_hosts, virt_host=amqp_virt_host,
+                                  username=amqp_user,
+                                  password=amqp_password,
+                                  hosts=amqp_hosts,
+                                  virt_host=amqp_virtual_host,
                                   exchange=amqp_exchange)
 
             self.novaConductorComputeAPI = NovaConductorComputeAPI(

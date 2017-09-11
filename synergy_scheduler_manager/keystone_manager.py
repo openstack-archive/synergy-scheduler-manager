@@ -73,10 +73,6 @@ class KeystoneManager(Manager):
                        help="set the http connection timeout",
                        default=60,
                        required=False),
-            cfg.IntOpt("trust_expiration",
-                       help="set the trust expiration",
-                       default=24,
-                       required=False),
             cfg.IntOpt("clock_skew",
                        help="set the clock skew (seconds)",
                        default=60,
@@ -100,7 +96,7 @@ class KeystoneManager(Manager):
                        required=False),
             cfg.StrOpt("amqp_topic",
                        help="the notification topic",
-                       default="notification",
+                       default="keystone_notification",
                        required=False)
         ]
 
@@ -117,7 +113,6 @@ class KeystoneManager(Manager):
         self.project_domain_name = CONF.KeystoneManager.project_domain_name
         self.project_id = CONF.KeystoneManager.project_id
         self.timeout = CONF.KeystoneManager.timeout
-        self.trust_expiration = CONF.KeystoneManager.trust_expiration
         self.clock_skew = CONF.KeystoneManager.clock_skew
 
         self.authenticate()

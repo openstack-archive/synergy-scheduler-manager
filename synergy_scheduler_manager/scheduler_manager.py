@@ -1,7 +1,9 @@
 import logging
+import time
 
 from common.quota import SharedQuota
 from common.request import Request
+from datetime import datetime, timedelta
 from oslo_config import cfg
 from synergy.common.manager import Manager
 from synergy.exception import SynergyError
@@ -259,15 +261,25 @@ class SchedulerManager(Manager):
                 project.setQueue(self.queue)
 
     def _processServerEvent(self, server, event, state):
+        project = self.project_manager.getProject(id=server.getProjectId())
+
+        if not project:
+            return
+
         if event == "compute.instance.create.end" and state == "active":
             LOG.info("the server %s is now active on host %s"
                      % (server.getId(), server.getHost()))
+
+            now = datetime.now()
+            expiration = now + timedelta(minutes = project.getTTL())
+            expiration = time.mktime(expiration.timetuple())
+            expiration = str(expiration)[:-2]
+
+            self.nova_manager.setServerMetadata(server,
+                                                "expiration_time",
+                                                expiration)
+
         else:
-            project = self.project_manager.getProject(id=server.getProjectId())
-
-            if not project:
-                return
-
             quota = project.getQuota()
 
             if event == "compute.instance.delete.end":
@@ -378,6 +390,6 @@ class SchedulerManager(Manager):
                                                    priority))
             else:
                 self.nova_manager.buildServer(request)
-        except SynergyError as ex:
+        except Exception as ex:
             LOG.error("Exception has occured", exc_info=1)
             LOG.error(ex)

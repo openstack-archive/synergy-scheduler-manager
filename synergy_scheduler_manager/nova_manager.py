@@ -668,6 +668,25 @@ class NovaManager(Manager):
 
         return response_data
 
+    def setServerMetadata(self, server, key, value):
+        if not server:
+            return
+
+        id = server.getId()
+        data = {"metadata": {key: value}}
+        url = "servers/%s/metadata" % id
+
+        try:
+            response_data = self.getResource(url, "POST", data)
+        except requests.exceptions.HTTPError as ex:
+            raise SynergyError("error on setting the metadata (id=%r)"
+                               ": %s" % (id, ex.response.json()))
+
+        if response_data:
+            response_data = response_data["metadata"]
+
+        return response_data
+
     def getHosts(self):
         data = {}
         url = "os-hosts"
@@ -709,7 +728,6 @@ class NovaManager(Manager):
         try:
             response_data = self.getResource(url, "GET", data)
         except requests.exceptions.HTTPError as ex:
-            LOG.info(ex)
             response = ex.response.json()
             raise SynergyError("error on retrieving the hypervisors list: %s"
                                % response["badRequest"]["message"])
@@ -1048,7 +1066,6 @@ where instance_uuid='%(id)s' and deleted_at is NULL""" % {"id": server.getId()}
                 server.setMetadata(metadata)
 
                 servers.append(server)
-
         except SQLAlchemyError as ex:
             raise SynergyError(ex.message)
         finally:

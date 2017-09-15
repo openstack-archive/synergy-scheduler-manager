@@ -68,6 +68,7 @@ class ServerEventHandler(object):
         server.setMetadata(server_info["metadata"])
         server.setDeletedAt(server_info["deleted_at"])
         server.setTerminatedAt(server_info["terminated_at"])
+        server.setType()
 
         if "host" in server_info:
             server.setHost(server_info["host"])
@@ -548,6 +549,9 @@ class NovaManager(Manager):
                 server.setName(server_data["name"])
                 server.setKeyName(server_data["key_name"])
                 server.setMetadata(server_data["metadata"])
+                server.setUserData(server_data.get("OS-EXT-SRV-ATTR:user_data",
+                                                   None))
+                server.setType()
                 server.setState(server_data["OS-EXT-STS:vm_state"])
                 server.setUserId(server_data["user_id"])
                 server.setProjectId(server_data["tenant_id"])
@@ -557,10 +561,6 @@ class NovaManager(Manager):
                     server_data.get("OS-SRV-USG:launched_at", None))
                 server.setTerminatedAt(
                     server_data.get("OS-SRV-USG:terminated_at", None))
-
-                if "user_data" in server_data:
-                    user_data = server_data["user_data"]
-                    server.setUserData(utils.decodeBase64(user_data))
 
                 if detail:
                     server.setFlavor(self.getFlavor(
@@ -587,6 +587,9 @@ class NovaManager(Manager):
             server.setName(server_data["name"])
             server.setKeyName(server_data["key_name"])
             server.setMetadata(server_data["metadata"])
+            server.setUserData(server_data.get("OS-EXT-SRV-ATTR:user_data",
+                                               None))
+            server.setType()
             server.setState(server_data["OS-EXT-STS:vm_state"])
             server.setUserId(server_data["user_id"])
             server.setProjectId(server_data["tenant_id"])
@@ -596,10 +599,6 @@ class NovaManager(Manager):
                 server_data.get("OS-SRV-USG:launched_at", None))
             server.setTerminatedAt(
                 server_data.get("OS-SRV-USG:terminated_at", None))
-
-            if "user_data" in server_data:
-                user_data = server_data["user_data"]
-                server.setUserData(utils.decodeBase64(user_data))
 
             if detail:
                 server.setFlavor(self.getFlavor(server_data["flavor"]["id"]))
@@ -978,9 +977,9 @@ a.launched_at<='%(to_date)s' and (a.terminated_at>='%(from_date)s' or \
         try:
             # retrieve the amount of resources in terms of cores and memory
             QUERY = """select a.uuid, a.vcpus, a.memory_mb, a.root_gb, \
-a.vm_state from nova.instances as a WHERE a.project_id='%(project_id)s' \
-and a.vm_state in ('active', 'building', 'error') and a.deleted_at is NULL \
-and a.terminated_at is NULL""" % {"project_id": prj_id}
+a.vm_state, a.user_data from nova.instances as a WHERE a.project_id=\
+'%(project_id)s'and a.vm_state in ('active', 'building', 'error') and \
+a.deleted_at is NULL and a.terminated_at is NULL""" % {"project_id": prj_id}
 
             LOG.debug("getProjectServers query: %s" % QUERY)
 
@@ -995,6 +994,7 @@ and a.terminated_at is NULL""" % {"project_id": prj_id}
                 server = Server()
                 server.setId(row[0])
                 server.setState(row[4])
+                server.setUserData(row[5])
                 server.setFlavor(flavor)
 
                 QUERY = """select `key`, value from nova.instance_metadata \
@@ -1009,6 +1009,7 @@ where instance_uuid='%(id)s' and deleted_at is NULL""" % {"id": server.getId()}
                     metadata[row[0]] = row[1]
 
                 server.setMetadata(metadata)
+                server.setType()
 
                 servers.append(server)
         except SQLAlchemyError as ex:
@@ -1031,7 +1032,7 @@ where instance_uuid='%(id)s' and deleted_at is NULL""" % {"id": server.getId()}
                 ids = "uuid in ('%s') and " % "', '".join(server_ids)
 
             QUERY = """select uuid, vcpus, memory_mb, root_gb, \
-vm_state from nova.instances where project_id = \
+vm_state, user_data from nova.instances where project_id = \
 '%(project_id)s' and deleted_at is NULL and (vm_state='error' or \
 (%(server_ids)s vm_state='active' and terminated_at is NULL \
 and timestampdiff(minute, launched_at, utc_timestamp()) >= %(expiration)s))\
@@ -1050,6 +1051,7 @@ and timestampdiff(minute, launched_at, utc_timestamp()) >= %(expiration)s))\
                 server = Server()
                 server.setId(row[0])
                 server.setState(row[4])
+                server.setUserData(row[5])
                 server.setFlavor(flavor)
 
                 QUERY = """select `key`, value from nova.instance_metadata \
@@ -1064,6 +1066,7 @@ where instance_uuid='%(id)s' and deleted_at is NULL""" % {"id": server.getId()}
                     metadata[row[0]] = row[1]
 
                 server.setMetadata(metadata)
+                server.setType()
 
                 servers.append(server)
         except SQLAlchemyError as ex:

@@ -115,8 +115,9 @@ class TestQueue(base.TestCase):
         user = User()
         user.setId(2)
         user.setProjectId(100)
+        user.getPriority().setValue(10)
 
-        self.queue.enqueue(user=user, data="mydata", priority=10)
+        self.queue.enqueue(user=user, data="mydata")
 
         self.assertEqual(1, self.queue.getSize())
 
@@ -125,8 +126,10 @@ class TestQueue(base.TestCase):
         user = User()
         user.setId(2)
         user.setProjectId(100)
+        user.getPriority().setValue(10)
         data = json.dumps("mydata")
-        self.queue.enqueue(user=user, data=data, priority=10)
+
+        self.queue.enqueue(user=user, data=data)
 
         self.assertEqual(1, self.queue.getSize())
 
@@ -148,9 +151,10 @@ class TestQueue(base.TestCase):
         user = User()
         user.setId(2)
         user.setProjectId(100)
+        user.getPriority().setValue(10)
         data = json.dumps("mydata")
 
-        self.queue.enqueue(user=user, data=data, priority=10)
+        self.queue.enqueue(user=user, data=data)
 
         # Mock the DB
         execute_mock = self.db_engine_mock.connect().execute

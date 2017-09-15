@@ -1,5 +1,6 @@
+import heapq
 import json
-import Queue as queue
+import threading
 
 from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError
@@ -95,13 +96,7 @@ class Queue(SynergyObject):
     def __init__(self, name="default", type="PRIORITY", db_engine=None):
         super(Queue, self).__init__()
 
-        if type == "FIFO":
-            self.queue = queue.Queue()
-        elif type == "LIFO":
-            self.queue = queue.LifoQueue()
-        elif type == "PRIORITY":
-            self.queue = queue.PriorityQueue()
-        else:
+        if type not in ["FIFO", "LIFO", "PRIORITY"]:
             raise SynergyError("queue type %r not supported" % type)
 
         self.set("type", type)
@@ -109,11 +104,13 @@ class Queue(SynergyObject):
         self.set("size", 0)
         self.setName(name)
         self.db_engine = db_engine
+        self._items = []
+        self.condition = threading.Condition()
 
         self._createTable()
         self._buildFromDB()
 
-    def _setSize(self, value):
+    def _incSize(self, value):
         size = self.get("size")
         self.set("size", size + value)
 
@@ -127,12 +124,12 @@ class Queue(SynergyObject):
         self.set("is_closed", is_closed)
 
     def isEmpty(self):
-        return self.queue.empty()
+        return len(self._items) == 0
 
     def close(self):
         self.setClosed(True)
 
-    def enqueue(self, user, data, priority=0):
+    def enqueue(self, user, data):
         if self.isClosed():
             raise SynergyError("the queue is closed!")
 
@@ -145,32 +142,46 @@ class Queue(SynergyObject):
         item = QueueItem()
         item.setUserId(user.getId())
         item.setProjectId(user.getProjectId())
-        item.setPriority(priority)
+        item.setPriority(user.getPriority().getValue())
         item.setData(data)
 
-        self._insertItemDB(item)
+        with self.condition:
+            if self.getType() == "FIFO":
+                self._items.append(item)
+            elif self.getType() == "LIFO":
+                self._items.insert(0, item)
+            elif self.getType() == "PRIORITY":
+                heapq.heappush(self._items, (-item.getPriority(),
+                                             item.getCreationTime(), item))
 
-        if self.getType() == "PRIORITY":
-            self.queue.put((-priority, item.getCreationTime(), item))
-        else:
-            self.queue.put(item)
-
-        self._setSize(1)
+            self._insertItemDB(item)
+            self._incSize(1)
+            self.condition.notifyAll()
 
     def dequeue(self, block=True, timeout=None, delete=False):
         if self.isClosed():
             raise SynergyError("the queue is closed!")
 
-        if self.queue.empty() and not block:
-            return None
+        item = None
 
-        item = self.queue.get(block=block, timeout=timeout)
+        with self.condition:
+            while (item is None and not self.isClosed()):
+                if not self._items:
+                    if block:
+                        self.condition.wait(timeout)
+                        if timeout:
+                            break
+                    else:
+                        break
+                elif self.getType() == "PRIORITY":
+                    item = heapq.heappop(self._items)[2]
+                else:
+                    item = self._items.pop(0)
+
+            self.condition.notifyAll()
 
         if not item:
             return None
-
-        if self.getType() == "PRIORITY":
-            item = item[2]
 
         self._getItemDataDB(item)
 
@@ -183,12 +194,44 @@ class Queue(SynergyObject):
         if self.isClosed():
             raise SynergyError("the queue is closed!")
 
-        if self.getType() == "PRIORITY":
-            self.queue.put((-item.getPriority(), item.getCreationTime(), item))
-        else:
-            self.queue.put(item)
+        with self.condition:
+            if self.getType() == "FIFO":
+                self._items.append(item)
+            elif self.getType() == "LIFO":
+                self._items.insert(0, item)
+            elif self.getType() == "PRIORITY":
+                heapq.heappush(self._items, (-item.getPriority(),
+                                             item.getCreationTime(), item))
 
-        self._updateItemDB(item)
+            self._updateItemDB(item)
+            self._incSize(1)
+            self.condition.notifyAll()
+
+    def updatePriority(self, user):
+        if self.isClosed():
+            raise SynergyError("the queue is closed!")
+
+        if self.getType() != "PRIORITY":
+            raise SynergyError("updatePriority() cannot be applied on this "
+                               "queue type")
+
+        new_items = []
+
+        with self.condition:
+            while self._items:
+                item = heapq.heappop(self._items)[2]
+
+                if item.getUserId() == user.getId() and\
+                        item.getProjectId() == user.getProjectId():
+                    item.setPriority(user.getPriority().getValue())
+                new_items.append(item)
+
+            for item in new_items:
+                heapq.heappush(self._items, (-item.getPriority(),
+                                             item.getCreationTime(), item))
+
+                self._incSize(1)
+            self.condition.notifyAll()
 
     def getType(self):
         return self.get("type")
@@ -230,14 +273,12 @@ class Queue(SynergyObject):
             connection.execute(QUERY, [item.getId()])
 
             trans.commit()
+            self._incSize(-1)
         except SQLAlchemyError as ex:
             trans.rollback()
             raise SynergyError(ex.message)
         finally:
             connection.close()
-
-        self._setSize(-1)
-        self.queue.task_done()
 
     def _createTable(self):
         if not self.db_engine:
@@ -282,7 +323,7 @@ TIMESTAMP NULL, `data` TEXT NOT NULL) ENGINE=InnoDB""" % self.getName()
                 item.setLastUpdate(row[6])
 
                 self.restore(item)
-                self._setSize(1)
+                self._incSize(1)
         except SQLAlchemyError as ex:
             raise SynergyError(ex.message)
         finally:

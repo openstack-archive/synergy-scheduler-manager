@@ -79,35 +79,6 @@ class FairShareManager(Manager):
     def destroy(self):
         pass
 
-    def calculatePriority(self, user_id, prj_id, timestamp=None, retry=0):
-        project = self.project_manager.getProject(id=prj_id)
-
-        if not project:
-            raise SynergyError("project=%s not found!" % prj_id)
-
-        user = project.getUser(id=user_id)
-
-        if not user:
-            raise SynergyError("user=%s not found!" % user_id)
-
-        priority = user.getPriority()
-        fairshare_vcpus = priority.getFairShare("vcpus")
-        fairshare_memory = priority.getFairShare("memory")
-
-        if not timestamp:
-            timestamp = datetime.utcnow()
-
-        now = datetime.utcnow()
-
-        diff = (now - timestamp)
-        minutes = diff.seconds / 60
-        priority = (float(self.age_weight) * minutes +
-                    float(self.vcpus_weight) * fairshare_vcpus +
-                    float(self.memory_weight) * fairshare_memory -
-                    float(self.age_weight) * retry)
-
-        return int(priority)
-
     def doOnEvent(self, event_type, *args, **kwargs):
         if event_type == "USER_ADDED":
             user = kwargs.get("user", None)
@@ -304,3 +275,5 @@ class FairShareManager(Manager):
 
                 usr_priority.setValue(float(self.vcpus_weight) * f_vcpus +
                                       float(self.memory_weight) * f_memory)
+
+                self.notify(event_type="USER_PRIORITY_UPDATED", user=user)

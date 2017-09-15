@@ -212,7 +212,7 @@ class QuotaManager(Manager):
                                  % (uuid, TTL, state, prj_id))
 
                     self.nova_manager.deleteServer(server)
-            except SynergyError as ex:
+            except Exception as ex:
                 LOG.error(ex)
 
     def updateSharedQuota(self):

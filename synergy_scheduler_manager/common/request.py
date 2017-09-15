@@ -1,5 +1,3 @@
-import utils
-
 from datetime import datetime
 from flavor import Flavor
 from server import Server
@@ -109,37 +107,19 @@ class Request(object):
         server.setProjectId(instance_data["project_id"])
         server.setCreatedAt(instance_data["created_at"])
         server.setMetadata(instance_data["metadata"])
+        server.setUserData(instance_data["user_data"])
         server.setKeyName(instance_data["key_name"])
+        server.setType()
 
-        user_data = instance_data.get("user_data", None)
-        if user_data:
-            try:
-                data = utils.decodeBase64(user_data)
-                quota = utils.getConfigParameter(data, "quota", "synergy")
-                if not quota:
-                    quota = utils.getConfigParameter(data, "quota")
-
-                metadata = instance_data.get("metadata", {})
-
-                if quota is None or quota == "private" or quota != "shared":
-                    server.setType("permanent")
-                    metadata["quota"] = "private"
-
-                elif quota == "shared":
-                    server.setType("ephemeral")
-                    metadata["quota"] = "shared"
-            except Exception:
-                server.setType("permanent")
-                metadata["quota"] = "private"
         request.server = server
 
         if "filter_properties" in request.data:
             filter_properties = request.data["filter_properties"]
-            request.retry = filter_properties["retry"]
+            request.retry = filter_properties.get("retry", {})
         else:
             request_spec = request.data["request_specs"][0]
             nova_object = request_spec["nova_object.data"]
-            request.retry = nova_object["retry"]
+            request.retry = nova_object.get("retry", {})
 
         if not request.retry:
             request.retry = {}

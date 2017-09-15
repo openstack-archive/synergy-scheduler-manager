@@ -204,7 +204,6 @@ class Queue(SynergyObject):
                                              item.getCreationTime(), item))
 
             self._updateItemDB(item)
-            self._incSize(1)
             self.condition.notifyAll()
 
     def updatePriority(self, user):

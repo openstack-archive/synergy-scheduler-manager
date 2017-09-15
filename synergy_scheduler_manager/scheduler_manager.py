@@ -67,29 +67,29 @@ class Worker(Thread):
         last_release_time = SharedQuota.getLastReleaseTime()
 
         while not self.exit and not self.queue.isClosed():
-            if last_release_time < SharedQuota.getLastReleaseTime():
-                last_release_time = SharedQuota.getLastReleaseTime()
+            try:
+                if last_release_time < SharedQuota.getLastReleaseTime():
+                    last_release_time = SharedQuota.getLastReleaseTime()
 
-                while queue_items:
-                    self.queue.restore(queue_items.pop(0))
+                    while queue_items:
+                        self.queue.restore(queue_items.pop(0))
 
-            if len(queue_items) >= self.backfill_depth:
-                SharedQuota.wait()
-                continue
-
-            queue_item = self.queue.dequeue(block=False)
-
-            if queue_item is None:
-                if self.queue.getSize():
+                if len(queue_items) >= self.backfill_depth:
                     SharedQuota.wait()
                     continue
-                else:
-                    queue_item = self.queue.dequeue(block=True)
 
-            if queue_item is None:
-                continue
+                queue_item = self.queue.dequeue(block=False)
 
-            try:
+                if queue_item is None:
+                    if self.queue.getSize():
+                        SharedQuota.wait()
+                        continue
+                    else:
+                        queue_item = self.queue.dequeue(block=True)
+
+                if queue_item is None:
+                    continue
+
                 request = Request.fromDict(queue_item.getData())
                 user_id = request.getUserId()
                 prj_id = request.getProjectId()
@@ -145,7 +145,7 @@ class Worker(Thread):
                                  "ta=shared" % (server_id, user_id, prj_id))
 
                         found = True
-                    except SynergyError as ex:
+                    except Exception as ex:
                         LOG.error("error on building the server %s (reason=%s)"
                                   % (server.getId(), ex))
 
@@ -157,7 +157,7 @@ class Worker(Thread):
                 else:
                     queue_items.append(queue_item)
 
-            except SynergyError as ex:
+            except Exception as ex:
                 LOG.error("Exception has occured", exc_info=1)
                 LOG.error("Worker %s: %s" % (self.name, ex))
 
@@ -204,6 +204,7 @@ class SchedulerManager(Manager):
         self.backfill_depth = CONF.SchedulerManager.backfill_depth
         self.exit = False
         self.configured = False
+        self.queue = None
 
     def execute(self, command, *args, **kargs):
         raise SynergyError("command %r not supported!" % command)
@@ -251,7 +252,9 @@ class SchedulerManager(Manager):
 
             self._processServerEvent(server, event, state)
         elif event_type == "SERVER_CREATE":
+
             self._processServerCreate(kwargs["request"])
+
         elif event_type == "PROJECT_ADDED":
             if not self.configured:
                 return
@@ -260,6 +263,10 @@ class SchedulerManager(Manager):
 
             if self.queue and project:
                 project.setQueue(self.queue)
+
+        elif event_type == "USER_PRIORITY_UPDATED":
+            if self.queue:
+                self.queue.updatePriority(kwargs.get("user", None))
 
     def _processServerEvent(self, server, event, state):
         project = self.project_manager.getProject(id=server.getProjectId())
@@ -279,7 +286,6 @@ class SchedulerManager(Manager):
             self.nova_manager.setServerMetadata(server,
                                                 "expiration_time",
                                                 expiration)
-
         else:
             quota = project.getQuota()
 
@@ -353,12 +359,6 @@ class SchedulerManager(Manager):
                                                     request.getUserId(),
                                                     request.getProjectId()))
                 else:
-                    priority = self.fairshare_manager.calculatePriority(
-                        user_id=request.getUserId(),
-                        prj_id=request.getProjectId(),
-                        timestamp=request.getCreatedAt(),
-                        retry=num_attempts)
-
                     context = request.getContext()
 
                     km = self.keystone_manager
@@ -381,8 +381,9 @@ class SchedulerManager(Manager):
 
                     context["trust_id"] = trust.getId()
                     user = project.getUser(id=request.getUserId())
+                    priority = user.getPriority().getValue()
 
-                    self.queue.enqueue(user, request.toDict(), priority)
+                    self.queue.enqueue(user, request.toDict())
 
                     LOG.info("new request: id=%s user_id=%s prj_id=%s priority"
                              "=%s quota=shared" % (request.getId(),

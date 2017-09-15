@@ -1,3 +1,5 @@
+import logging
+import re
 import utils
 
 from datetime import datetime
@@ -23,6 +25,9 @@ See the License for the specific language governing
 permissions and limitations under the License."""
 
 
+LOG = logging.getLogger(__name__)
+
+
 class Server(SynergyObject):
 
     def __init__(self):
@@ -45,8 +50,35 @@ class Server(SynergyObject):
     def getType(self):
         return self.get("type")
 
-    def setType(self, type):
-        self.set("type", type)
+    def setType(self, type=None):
+        if type:
+            self.set("type", type)
+            return
+
+        metadata = self.get("metadata")
+        userdata = self.get("userdata")
+
+        if "quota" in metadata:
+            if metadata["quota"] == "shared":
+                self.set("type", "ephemeral")
+
+        elif userdata:
+            try:
+                data = userdata.splitlines()
+                keyValRegEx = re.compile(r'^\s*(quota)\s*=\s*(shared)\s*$')
+
+                for row in data:
+                    result = keyValRegEx.search(row)
+                    if result:
+                        self.set("type", "ephemeral")
+                        break
+            except Exception as ex:
+                LOG.error(ex)
+
+        if self.isPermanent():
+            metadata["quota"] = "private"
+        else:
+            metadata["quota"] = "shared"
 
     def getState(self):
         return self.get("state")
@@ -78,30 +110,11 @@ class Server(SynergyObject):
     def setMetadata(self, metadata):
         self.set("metadata", metadata)
 
-        if "quota" in metadata:
-            if metadata["quota"] == "shared":
-                self.setType("ephemeral")
-            else:
-                self.setType("permanent")
-
     def getUserData(self):
         return self.get("userdata")
 
     def setUserData(self, userdata):
-        self.set("userdata", userdata)
-
-        if userdata:
-            try:
-                quota = utils.getConfigParameter(userdata, "quota", "synergy")
-
-                if quota is None or quota == "private":
-                    self.setType("permanent")
-                elif quota == "shared":
-                    self.setType("ephemeral")
-                else:
-                    self.setType("permanent")
-            except Exception:
-                self.setType("permanent")
+        self.set("userdata", utils.decodeBase64(userdata))
 
     def getUserId(self):
         return self.get("user_id")

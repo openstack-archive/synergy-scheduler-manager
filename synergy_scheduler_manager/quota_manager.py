@@ -37,8 +37,6 @@ class QuotaManager(Manager):
         super(QuotaManager, self).__init__("QuotaManager")
 
     def setup(self):
-        self.projects = {}
-
         if self.getManager("NovaManager") is None:
             raise SynergyError("NovaManager not found!")
 
@@ -142,8 +140,7 @@ class QuotaManager(Manager):
                                         project.getName(),
                                         project.getId()))
                             quota.allocate(server)
-
-                self.projects[project.getId()] = project
+                self.updateSharedQuota()
             except SynergyError as ex:
                 LOG.error(ex)
                 raise ex
@@ -254,34 +251,12 @@ class QuotaManager(Manager):
             kprojects = self.keystone_manager.getProjects(domain_id=dom_id)
 
             for kproject in kprojects:
-                project = self.project_manager.getProject(id=kproject.getId())
+                quota = self.nova_manager.getQuota(kproject.getId())
 
-                if project:
-                    quota = self.nova_manager.getQuota(project.getId(),
+                if quota.getSize("vcpus") == -1 and\
+                        quota.getSize("memory") == -1:
+                    quota = self.nova_manager.getQuota(kproject.getId(),
                                                        is_class=True)
-                    pquota = project.getQuota()
-                    vcpus_size = quota.getSize("vcpus")
-                    vcpus_usage = pquota.getUsage("vcpus")
-                    mem_size = quota.getSize("memory")
-                    mem_usage = pquota.getUsage("memory")
-
-                    if vcpus_usage > vcpus_size or mem_usage > mem_size:
-                        LOG.info("cannot shrink the private quota for project"
-                                 " %r (id=%s) because the usage of current "
-                                 "quota exceeds the new size (vcpus=%s, "
-                                 "memory=%s)" % (project.getName(),
-                                                 project.getId(),
-                                                 quota.getSize("vcpus"),
-                                                 quota.getSize("memory")))
-                        self.nova_manager.updateQuota(pquota, is_class=True)
-                        quota = pquota
-                    else:
-                        pquota.setSize("vcpus", value=quota.getSize("vcpus"))
-                        pquota.setSize("memory", value=quota.getSize("memory"))
-                        pquota.setSize("instances",
-                                       value=quota.getSize("instances"))
-                else:
-                    quota = self.nova_manager.getQuota(kproject.getId())
 
                 if quota.getSize("vcpus") > 0:
                     static_vcpus += quota.getSize("vcpus")

@@ -378,3 +378,5 @@ NOT NULL PRIMARY KEY, name VARCHAR(64), share INT DEFAULT 0, TTL INT DEFAULT \
             raise SynergyError(ex.message)
         finally:
             connection.close()
+            self.notify(event_type="PROJECT_DONE")
+

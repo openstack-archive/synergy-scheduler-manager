@@ -24,7 +24,7 @@ See the License for the specific language governing
 permissions and limitations under the License."""
 
 
-LOG = logging.getLogger("quota")
+LOG = logging.getLogger(__name__)
 
 
 class Quota(SynergyObject):

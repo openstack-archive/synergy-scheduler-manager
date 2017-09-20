@@ -229,7 +229,6 @@ class Queue(SynergyObject):
                 heapq.heappush(self._items, (-item.getPriority(),
                                              item.getCreationTime(), item))
 
-                self._incSize(1)
             self.condition.notifyAll()
 
     def getType(self):

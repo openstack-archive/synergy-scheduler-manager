@@ -74,6 +74,10 @@ class Worker(Thread):
                     while queue_items:
                         self.queue.restore(queue_items.pop(0))
 
+                    for project in self.project_manager.getProjects():
+                        for user in project.getUsers():
+                            self.queue.updatePriority(user)
+
                 if len(queue_items) >= self.backfill_depth:
                     SharedQuota.wait()
                     continue
@@ -213,8 +217,6 @@ class SchedulerManager(Manager):
         if self.configured:
             return
 
-        self.quota_manager.updateSharedQuota()
-
         try:
             self.queue = self.queue_manager.createQueue("DYNAMIC", "PRIORITY")
         except SynergyError as ex:
@@ -232,7 +234,6 @@ class SchedulerManager(Manager):
                         self.nova_manager,
                         self.keystone_manager,
                         self.backfill_depth)
-        worker.start()
 
         self.workers.append(worker)
 
@@ -268,6 +269,10 @@ class SchedulerManager(Manager):
             if self.queue:
                 self.queue.updatePriority(kwargs.get("user", None))
 
+        elif event_type == "PROJECT_DONE":
+            for worker in self.workers:
+                worker.start()
+
     def _processServerEvent(self, server, event, state):
         project = self.project_manager.getProject(id=server.getProjectId())
 
@@ -298,21 +303,14 @@ class SchedulerManager(Manager):
                     LOG.warn("cannot release server %s "
                              "(reason=%s)" % (server.getId(), ex))
             elif state == "error":
-                LOG.info("error occurred on server %s (host %s)"
-                         % (server.getId(), server.getHost()))
-
                 if not server.getTerminatedAt() and not server.getDeletedAt():
                     try:
-                        self.nova_manager.deleteServer(server)
-                    except Exception as ex:
-                        LOG.error("cannot delete server %s: %s"
-                                  % (server.getId(), ex))
+                        LOG.info("error occurred on server %s (host %s)"
+                                 % (server.getId(), server.getHost()))
 
-                try:
-                    quota.release(server)
-                except Exception as ex:
-                    LOG.warn("cannot release server %s "
-                             "(reason=%s)" % (server.getId(), ex))
+                        self.nova_manager.deleteServer(server)
+                    except Exception:
+                        pass
 
     def _processServerCreate(self, request):
         server = request.getServer()
@@ -338,6 +336,8 @@ class SchedulerManager(Manager):
                              % (request.getId(), request.getUserId(),
                                 request.getProjectId(), num_attempts, reason))
                     return
+
+                self.nova_manager.setQuotaTypeServer(server)
 
                 if server.isPermanent():
                     if quota.allocate(server, blocking=False):

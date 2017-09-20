@@ -685,6 +685,33 @@ class NovaManager(Manager):
 
         return response_data
 
+    def setQuotaTypeServer(self, server):
+        if not server:
+            return
+
+        QUERY = "insert into nova.instance_metadata (created_at, `key`, " \
+            "`value`, instance_uuid) values (%s, 'quota', %s, %s)"
+
+        connection = self.db_engine.connect()
+        trans = connection.begin()
+
+        quota_type = "private"
+
+        if server.isEphemeral():
+            quota_type = "shared"
+
+        try:
+            connection.execute(QUERY,
+                               [server.getCreatedAt(), quota_type,
+                                server.getId()])
+
+            trans.commit()
+        except SQLAlchemyError as ex:
+            trans.rollback()
+            raise SynergyError(ex.message)
+        finally:
+            connection.close()
+
     def getHosts(self):
         data = {}
         url = "os-hosts"

@@ -1,7 +1,7 @@
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 
 Name:          python-synergy-scheduler-manager
-Version:       2.5.1
+Version:       2.6.0
 Release:       1%{?dist}
 Summary:       Advanced scheduling capability for OpenStack.
 Source:        %name-%version.tar.bz2
@@ -56,6 +56,14 @@ install -D -m0644 config/policy.json                  %{buildroot}%{_sysconfdir}
 
 
 %changelog
+* Wed Sep 20 2017 Ervin Konomi <ervin.konomi@pd.infn.it> - 2.6.0-1
+- Restored setQuotaTypeServer()
+- Restore() incorrectly increases the queue size
+- Synergy should scale up the oldest user requests from the queue
+- Mechanism that performs user actions before Synergy deletes the VMs
+- Configuration parameters updated
+- Termination of expired servers
+
 * Mon Aug 21 2017 Vincent Llorens <vincent.llorens@cc.in2p3.fr> - 2.5.1-1
 - Update some python requirements to python2-* names
 - fix small typo preventing scheduler initialization

@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+* Restored setQuotaTypeServer()
+* Restore() incorrectly increases the queue size
+* Synergy should scale up the oldest user requests from the queue
+* Mechanism that performs user actions before Synergy deletes the VMs
+* Configuration parameters updated
+* Termination of expired servers
+
+2.5.1
+-----
+
+* Release 2.5.1
 * fix small typo preventing scheduler initialization
 
 2.5.0

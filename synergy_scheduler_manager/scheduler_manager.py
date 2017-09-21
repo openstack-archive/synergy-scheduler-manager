@@ -337,7 +337,10 @@ class SchedulerManager(Manager):
                                 request.getProjectId(), num_attempts, reason))
                     return
 
-                self.nova_manager.setQuotaTypeServer(server)
+                try:
+                    self.nova_manager.setQuotaTypeServer(server)
+                except Exception:
+                    pass
 
                 if server.isPermanent():
                     if quota.allocate(server, blocking=False):

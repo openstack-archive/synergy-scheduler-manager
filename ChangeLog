@@ -155,7 +155,7 @@ CHANGES
 * broaden package versions in requirements
 * scheduler\_maanger.py: restored the signatures of Notificatio.info() Notificatio.warn() and Notificatio.error() fairshare\_manager.py: fixed calculateFairShare() client: added new shell commands
 * add docker packaging for CentOS 7 & Ubuntu 14.04
-* bump to vesion 0.2
+* bump to version 0.2
 * various clean & fix w/ changes in functionalities
 * add deb & rpm files for packaging
 * import project from launchpad

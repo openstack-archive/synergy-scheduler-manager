@@ -1,7 +1,0 @@
-[run]
-branch = True
-source = synergy_scheduler_manager
-omit = synergy_scheduler_manager/openstack/*
-
-[report]
-ignore_errors = True
